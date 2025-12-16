@@ -27,51 +27,44 @@ export async function createUser(formData: {
     throw new Error("Bu kullanıcı adı zaten kullanılıyor")
   }
 
-  // Create user in auth.users using admin API
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: formData.username + "@surgery-calendar.local", // Generate email from username
-    password: formData.password,
-    email_confirm: true, // Auto-confirm the user
-    user_metadata: {
-      username: formData.username,
-      first_name: formData.first_name,
-      last_name: formData.last_name,
-      is_admin: formData.is_admin,
-    },
-  })
-
-  if (authError) {
-    console.error("[v0] Error creating auth user:", authError.message)
-    if (authError.message.includes("email_exists") || authError.message.includes("already been registered")) {
-      throw new Error("Bu kullanıcı adı zaten kullanılıyor")
-    }
-    throw new Error("Kullanıcı oluşturulurken hata oluştu: " + authError.message)
-  }
-
-  if (!authData.user) {
-    throw new Error("Kullanıcı oluşturulamadı")
-  }
-
-  // Update the profile created by the trigger with additional fields
+  // Create profile directly with password
   const { data, error } = await supabase
     .from("profiles")
-    .update({
+    .insert({
+      id: crypto.randomUUID(),
       username: formData.username,
+      password: formData.password,
       first_name: formData.first_name,
       last_name: formData.last_name,
       is_admin: formData.is_admin,
     })
-    .eq("id", authData.user.id)
     .select()
     .maybeSingle()
 
   if (error) {
-    console.error("[v0] Error updating profile:", error)
-    throw new Error("Profil güncellenirken hata oluştu: " + error.message)
+    console.error("[v0] Error creating user:", error)
+    throw new Error("Kullanıcı oluşturulurken hata oluştu: " + error.message)
   }
 
   revalidatePath("/admin")
   return { success: true, data }
+}
+
+export async function updateUserPassword(userId: string, newPassword: string) {
+  const user = await getCurrentUser()
+  if (!user?.is_admin) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+
+  const { error } = await supabase.from("profiles").update({ password: newPassword }).eq("id", userId)
+
+  if (error) {
+    console.error("[v0] Error updating user password:", error)
+    throw new Error("Şifre güncellenirken hata oluştu: " + error.message)
+  }
+
+  revalidatePath("/admin")
+  return { success: true }
 }
 
 export async function deleteUser(userId: string) {

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { ClipboardList, Plus, BookOpen } from "lucide-react"
+import { ClipboardList, Plus } from "lucide-react"
 import Link from "next/link"
 import { SurgeryForm } from "./surgery-form"
 import type { Doctor, Salon } from "@/lib/types"
@@ -26,12 +26,6 @@ export function AddSurgeryButton({ salons, doctors }: AddSurgeryButtonProps) {
           <Button variant="secondary" className="gap-2 w-full">
             <ClipboardList className="h-4 w-4" />
             Bekleme Listesi
-          </Button>
-        </Link>
-        <Link href="/notebook" className="w-full">
-          <Button variant="outline" className="gap-2 w-full bg-transparent">
-            <BookOpen className="h-4 w-4" />
-            Defter Görünümü
           </Button>
         </Link>
       </div>

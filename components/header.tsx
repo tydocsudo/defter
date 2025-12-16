@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { User, LogOut, Settings, Home } from "lucide-react"
+import { User, LogOut, Settings, Home, BookOpen, Clock } from "lucide-react"
 import Link from "next/link"
 
 export async function Header() {
@@ -17,16 +17,26 @@ export async function Header() {
   return (
     <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           <Link href="/">
             <Button variant="ghost" size="sm" className="gap-2">
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">Ana Sayfa</span>
             </Button>
           </Link>
-          <h1 className="text-lg md:text-xl font-bold text-gray-900">Ameliyat Planlama</h1>
+          <Link href="/fliphtml">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <BookOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">Defter</span>
+            </Button>
+          </Link>
+          <Link href="/waiting-list">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <Clock className="h-4 w-4" />
+              <span className="hidden sm:inline">Bekleme</span>
+            </Button>
+          </Link>
         </div>
-        {/* </CHANGE> */}
         <div className="flex items-center gap-2 md:gap-4">
           {user?.is_admin && (
             <Link href="/admin">

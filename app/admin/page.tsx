@@ -25,9 +25,17 @@ export default async function AdminPage() {
     supabase.from("doctors").select("*").order("name"),
   ])
 
+  console.log("[v0] Admin page - users fetch result:", {
+    data: usersRes.data,
+    error: usersRes.error,
+    count: usersRes.data?.length,
+  })
+
   const users = usersRes.data || []
   const salons = salonsRes.data || []
   const doctors = doctorsRes.data || []
+
+  console.log("[v0] Admin page - passing users to component:", users.length)
 
   return (
     <div className="min-h-screen bg-gray-50">

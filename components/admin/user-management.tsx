@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import type { Profile } from "@/lib/types"
-import { createUser, deleteUser } from "@/lib/actions/admin"
+import { createUser, deleteUser, updateUserPassword } from "@/lib/actions/admin"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { UserPlus, Trash2 } from "lucide-react"
+import { UserPlus, Trash2, KeyRound } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 interface UserManagementProps {
@@ -28,7 +28,12 @@ interface UserManagementProps {
 }
 
 export function UserManagement({ users }: UserManagementProps) {
+  console.log("[v0] UserManagement component - users prop:", users.length, users)
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [selectedUsername, setSelectedUsername] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,6 +72,36 @@ export function UserManagement({ users }: UserManagementProps) {
     } catch (err: any) {
       alert(err.message || "Kullanıcı silinirken bir hata oluştu")
     }
+  }
+
+  const handlePasswordChange = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!selectedUserId) return
+
+    setIsLoading(true)
+    setError(null)
+
+    const formData = new FormData(e.currentTarget)
+    const newPassword = formData.get("new_password") as string
+
+    try {
+      await updateUserPassword(selectedUserId, newPassword)
+      setIsPasswordDialogOpen(false)
+      setSelectedUserId(null)
+      setSelectedUsername("")
+      ;(e.target as HTMLFormElement).reset()
+    } catch (err: any) {
+      setError(err.message || "Şifre değiştirilirken bir hata oluştu")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const openPasswordDialog = (userId: string, username: string) => {
+    setSelectedUserId(userId)
+    setSelectedUsername(username)
+    setIsPasswordDialogOpen(true)
+    setError(null)
   }
 
   return (
@@ -153,19 +188,69 @@ export function UserManagement({ users }: UserManagementProps) {
                 </TableCell>
                 <TableCell>{new Date(user.created_at).toLocaleDateString("tr-TR")}</TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(user.id)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openPasswordDialog(user.id, user.username)}
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    >
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(user.id)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+
+        <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+          <DialogContent>
+            <form onSubmit={handlePasswordChange}>
+              <DialogHeader>
+                <DialogTitle>Şifre Değiştir</DialogTitle>
+                <DialogDescription>
+                  <span className="font-semibold">{selectedUsername}</span> kullanıcısı için yeni şifre belirleyin
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new_password">Yeni Şifre</Label>
+                  <Input
+                    id="new_password"
+                    name="new_password"
+                    type="password"
+                    required
+                    disabled={isLoading}
+                    placeholder="Yeni şifreyi girin"
+                  />
+                </div>
+                {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{error}</div>}
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsPasswordDialogOpen(false)}
+                  disabled={isLoading}
+                >
+                  İptal
+                </Button>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Değiştiriliyor..." : "Şifreyi Değiştir"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )

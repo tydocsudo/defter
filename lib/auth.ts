@@ -12,12 +12,12 @@ export interface User {
 
 export async function verifyCredentials(username: string, password: string): Promise<User | null> {
   try {
-    const supabase = getAdminClient()
+    const adminClient = getAdminClient()
 
-    // First, get the user's email from profiles table using username
-    const { data: profile, error: profileError } = await supabase
+    // Fetch user with password from database
+    const { data: profile, error: profileError } = await adminClient
       .from("profiles")
-      .select("id, username, first_name, last_name, is_admin")
+      .select("id, username, first_name, last_name, is_admin, password")
       .eq("username", username)
       .maybeSingle()
 
@@ -26,22 +26,9 @@ export async function verifyCredentials(username: string, password: string): Pro
       return null
     }
 
-    // Get the email from auth.users
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(profile.id)
-
-    if (authError || !authUser.user) {
-      console.log("[v0] Auth user not found:", authError)
-      return null
-    }
-
-    // Verify password using Supabase auth
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: authUser.user.email!,
-      password: password,
-    })
-
-    if (signInError || !signInData.user) {
-      console.log("[v0] Sign in failed:", signInError?.message)
+    // Simple password comparison
+    if (profile.password !== password) {
+      console.log("[v0] Password mismatch")
       return null
     }
 
@@ -99,8 +86,8 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   }
 
   try {
-    const supabase = getAdminClient()
-    const { data: profile, error } = await supabase
+    const adminClient = getAdminClient()
+    const { data: profile, error } = await adminClient
       .from("profiles")
       .select("id, username, first_name, last_name, is_admin")
       .eq("id", userId)

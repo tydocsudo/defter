@@ -121,7 +121,7 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
           </div>
 
           <div className="flex-1 min-w-0">
-            <Card>
+            <Card className="mx-px my-0 px-0 leading-7 border-4">
               <CardHeader>
                 <div className="flex flex-col space-y-3 sm:space-y-4">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
@@ -162,7 +162,7 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
                   </Select>
                 </div>
               </CardHeader>
-              <CardContent className="p-1 sm:p-2 md:p-4 lg:p-6">
+              <CardContent className="p-2 sm:p-3 md:p-4">
                 {isLoading ? (
                   <div className="text-center py-8 sm:py-12 text-gray-500 text-sm">Yükleniyor...</div>
                 ) : (

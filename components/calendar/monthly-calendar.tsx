@@ -172,7 +172,7 @@ export function MonthlyCalendar({
   return (
     <>
       <div className="w-full overflow-x-auto">
-        <div className="grid grid-cols-5 gap-1 sm:gap-2">
+        <div className="grid grid-cols-5 gap-2 sm:gap-2.5 md:gap-3">
           {days.map((day, index) => {
             if (day === null) {
               return <div key={`empty-${index}`} className="min-h-[100px] sm:min-h-[140px] lg:min-h-[180px]" />
@@ -196,7 +196,7 @@ export function MonthlyCalendar({
               <div
                 key={day}
                 className={cn(
-                  "border-2 rounded-lg p-1.5 sm:p-2 md:p-3 cursor-pointer transition-all hover:shadow-lg relative min-h-[100px] sm:min-h-[140px] lg:min-h-[180px] flex flex-col",
+                  "rounded-lg p-1.5 sm:p-2 md:p-2.5 cursor-pointer transition-all hover:shadow-lg relative min-h-[100px] sm:min-h-[140px] lg:min-h-[180px] flex flex-col border-2 md:px-2.5 md:py-2.5 mx-1 my-1",
                   isSelected && "ring-2 ring-blue-500 bg-blue-50",
                   isToday && !isSelected && "bg-yellow-50 border-yellow-400",
                   !isSelected && !isToday && "bg-white hover:bg-gray-50",
@@ -256,7 +256,7 @@ export function MonthlyCalendar({
                     </Select>
                   )}
 
-                  <div className="flex-1 space-y-0.5 sm:space-y-1 lg:space-y-1.5 min-h-0">
+                  <div className="flex-1 min-h-0 overflow-hidden sm:space-y-0 my-0 border-0">
                     {daySurgeries.length > 0 && (
                       <Badge variant="secondary" className="text-[9px] sm:text-xs font-semibold mb-0.5 sm:mb-1">
                         {daySurgeries.length} vaka
@@ -266,16 +266,16 @@ export function MonthlyCalendar({
                       <div
                         key={surgery.id}
                         className={cn(
-                          "text-[9px] sm:text-xs lg:text-sm font-bold text-gray-900 leading-tight break-words px-1 sm:px-2 py-0.5 sm:py-1 lg:py-1.5 rounded border",
+                          "text-[9px] sm:text-[10px] lg:text-xs font-bold text-gray-900 leading-tight break-words px-1 sm:px-1.5 py-0.5 sm:py-1 rounded border overflow-hidden",
                           surgeryColors[idx % surgeryColors.length],
                         )}
                         title={surgery.procedure_name}
                       >
-                        • {surgery.procedure_name}
+                        <div className="line-clamp-2">• {surgery.procedure_name}</div>
                       </div>
                     ))}
                     {daySurgeries.length > 2 && (
-                      <div className="text-[9px] sm:text-xs text-gray-600 font-medium px-1 sm:px-2">
+                      <div className="text-[9px] sm:text-xs text-gray-600 font-medium px-1 sm:px-1.5">
                         +{daySurgeries.length - 2} daha...
                       </div>
                     )}

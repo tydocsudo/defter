@@ -51,9 +51,9 @@ Hastane ameliyathaneleri için kapsamlı bir ameliyat planlama ve takip sistemi.
 ### Adımlar
 
 1. **Bağımlılıkları yükleyin:**
-\`\`\`bash
+```bash
 npm install
-\`\`\`
+```
 
 2. **Veritabanı tablolarını oluşturun:**
 Scripts klasöründeki SQL dosyalarını sırayla çalıştırın:
@@ -63,9 +63,9 @@ Scripts klasöründeki SQL dosyalarını sırayla çalıştırın:
 - `004_create_admin_user.sql`
 
 3. **Uygulamayı başlatın:**
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 
 4. **İlk giriş:**
 - Kullanıcı adı: `admin`

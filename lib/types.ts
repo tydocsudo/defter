@@ -4,6 +4,7 @@ export interface Profile {
   first_name: string
   last_name: string
   is_admin: boolean
+  password?: string // Added password field
   created_at: string
   updated_at: string
 }
