@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import { format } from "date-fns"
 import { tr } from "date-fns/locale"
+import ExcelJS from "exceljs"
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -36,22 +37,44 @@ export async function GET(request: NextRequest) {
     .eq("is_waiting_list", false)
     .order("created_at")
 
-  const csv = generateExcelCSV(salon, surgeries || [], date)
+  const excelBuffer = await generateExcelXLSX(salon, surgeries || [], date)
   const formattedDate = format(new Date(date + "T00:00:00"), "dd-MM-yyyy", { locale: tr })
 
-  return new NextResponse(csv, {
+  return new NextResponse(excelBuffer, {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="ameliyat-listesi-${formattedDate}.csv"`,
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="ameliyat-listesi-${formattedDate}.xlsx"`,
     },
   })
 }
 
-function generateExcelCSV(salon: any, surgeries: any[], date: string) {
+async function generateExcelXLSX(salon: any, surgeries: any[], date: string): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet("Ameliyat Listesi")
+
   const formattedDate = format(new Date(date + "T00:00:00"), "dd/MM/yyyy", { locale: tr })
 
-  // CSV Header matching the template
-  const header = [
+  // Title
+  worksheet.mergeCells("A1:K1")
+  const titleCell = worksheet.getCell("A1")
+  titleCell.value = "JİNEKOLOJİ KLİNİĞİ GÜNLÜK AMELİYAT LİSTESİ"
+  titleCell.font = { bold: true, size: 14 }
+  titleCell.alignment = { horizontal: "center", vertical: "middle" }
+
+  // Date
+  worksheet.mergeCells("A2:K2")
+  const dateCell = worksheet.getCell("A2")
+  dateCell.value = `TARİH: ${formattedDate}`
+  dateCell.font = { bold: true, size: 12 }
+  dateCell.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFF00" },
+  }
+  dateCell.alignment = { horizontal: "left", vertical: "middle" }
+
+  // Headers
+  const headers = [
     "AMELİYAT SALON NO",
     "HASTA ADI",
     "ODA NO",
@@ -65,43 +88,71 @@ function generateExcelCSV(salon: any, surgeries: any[], date: string) {
     "DOKTOR ADI",
   ]
 
-  // Title rows
-  const titleRows = [["JİNEKOLOJİ KLİNİĞİ GÜNLÜK AMELİYAT LİSTESİ"], [`TARİH: ${formattedDate}`], [], header]
+  const headerRow = worksheet.getRow(4)
+  headers.forEach((header, index) => {
+    const cell = headerRow.getCell(index + 1)
+    cell.value = header
+    cell.font = { bold: true }
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "D3D3D3" },
+    }
+    cell.border = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    }
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }
+  })
 
   // Data rows
-  const dataRows = surgeries.map((surgery) => [
-    salon.name.replace("Salon ", ""),
-    surgery.patient_name.toUpperCase(),
-    surgery.room_number || "",
-    surgery.protocol_number || "",
-    surgery.age || "",
-    surgery.asa_score || "",
-    surgery.indication?.toUpperCase() || "",
-    surgery.procedure_name?.toUpperCase() || "",
-    surgery.icu_need ? "EVET" : "",
-    surgery.blood_preparation ? "EVET" : "",
-    surgery.responsible_doctor?.name?.toUpperCase() || "",
-  ])
+  surgeries.forEach((surgery, index) => {
+    const row = worksheet.getRow(5 + index)
+    const rowData = [
+      salon.name.replace("Salon ", ""),
+      surgery.patient_name?.toUpperCase() || "",
+      surgery.room_number || "",
+      surgery.protocol_number || "",
+      surgery.age || "",
+      surgery.asa_score || "",
+      surgery.indication?.toUpperCase() || "",
+      surgery.procedure_name?.toUpperCase() || "",
+      surgery.icu_need ? "EVET" : "",
+      surgery.blood_preparation ? "EVET" : "",
+      surgery.responsible_doctor?.name?.toUpperCase() || "",
+    ]
 
-  // Combine all rows
-  const allRows = [...titleRows, ...dataRows]
+    rowData.forEach((data, colIndex) => {
+      const cell = row.getCell(colIndex + 1)
+      cell.value = data
+      cell.border = {
+        top: { style: "thin" },
+        left: { style: "thin" },
+        bottom: { style: "thin" },
+        right: { style: "thin" },
+      }
+      cell.alignment = { vertical: "middle", wrapText: true }
+    })
+  })
 
-  // Convert to CSV format with proper escaping
-  const csvContent = allRows
-    .map((row) =>
-      row
-        .map((cell) => {
-          const cellStr = String(cell)
-          // Escape quotes and wrap in quotes if contains comma or quote
-          if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
-            return `"${cellStr.replace(/"/g, '""')}"`
-          }
-          return cellStr
-        })
-        .join(","),
-    )
-    .join("\n")
+  // Set column widths
+  worksheet.columns = [
+    { width: 15 }, // Ameliyat Salon No
+    { width: 25 }, // Hasta Adı
+    { width: 10 }, // Oda No
+    { width: 15 }, // Protokol No
+    { width: 8 }, // Yaş
+    { width: 12 }, // ASA Skoru
+    { width: 30 }, // Tanı
+    { width: 40 }, // Operasyon
+    { width: 15 }, // Yoğun Bakım
+    { width: 15 }, // Kan Hazırlığı
+    { width: 25 }, // Doktor Adı
+  ]
 
-  // Add BOM for proper Turkish character encoding in Excel
-  return "\uFEFF" + csvContent
+  // Generate buffer
+  const buffer = await workbook.xlsx.writeBuffer()
+  return Buffer.from(buffer)
 }
