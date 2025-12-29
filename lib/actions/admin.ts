@@ -28,9 +28,12 @@ export async function createUser(formData: {
     throw new Error("Bu kullanıcı adı zaten kullanılıyor")
   }
 
+  const sanitizedUsername = formData.username.toLowerCase().replace(/[^a-z0-9]/g, "")
+  const email = `${sanitizedUsername}@surgery-system.local`
+
   // Create user in Supabase Auth first (this will trigger profile creation via trigger)
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email: `${formData.username}@internal.app`, // Use username as email
+    email: email,
     password: formData.password,
     email_confirm: true, // Auto-confirm email
     user_metadata: {
@@ -188,21 +191,96 @@ export async function deleteDoctor(doctorId: string) {
 }
 
 // Activity Logs
-export async function getActivityLogs(limit = 50) {
-  const supabase = createAdminClient()
+export async function getActivityLogs(limit = 50, offset = 0) {
+  try {
+    const supabase = createAdminClient()
 
-  const { data, error } = await supabase
-    .from("activity_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit)
+    console.log("[v0] Fetching activity logs with limit:", limit, "offset:", offset)
 
-  if (error) {
-    console.error("[v0] Error fetching activity logs:", error)
+    const { data, error } = await supabase
+      .from("activity_logs")
+      .select(`
+        *,
+        user:profiles!activity_logs_user_id_fkey(id, username, first_name, last_name)
+      `)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (error) {
+      console.error("[v0] Error fetching activity logs:", error)
+      return []
+    }
+
+    console.log("[v0] Fetched", data?.length || 0, "activity logs")
+
+    // Extract all unique surgery IDs and salon IDs from logs
+    const surgeryIds = new Set<string>()
+    const salonIds = new Set<string>()
+    ;(data || []).forEach((log) => {
+      const details = log.details as any
+      if (details?.surgery_id) surgeryIds.add(details.surgery_id)
+      if (details?.salon_id) salonIds.add(details.salon_id)
+      if (details?.old_salon_id) salonIds.add(details.old_salon_id)
+    })
+
+    // Batch fetch all surgeries
+    const surgeriesMap = new Map()
+    if (surgeryIds.size > 0) {
+      const { data: surgeriesData } = await supabase
+        .from("surgeries")
+        .select("id, patient_name, surgery_date, is_waiting_list, salon_id")
+        .in("id", Array.from(surgeryIds))
+
+      surgeriesData?.forEach((s: any) => {
+        surgeriesMap.set(s.id, s)
+        if (s.salon_id) salonIds.add(s.salon_id)
+      })
+    }
+
+    // Batch fetch all salons
+    const salonsMap = new Map()
+    if (salonIds.size > 0) {
+      const { data: salonsData } = await supabase.from("salons").select("id, name").in("id", Array.from(salonIds))
+
+      salonsData?.forEach((s: any) => {
+        salonsMap.set(s.id, s.name)
+      })
+    }
+
+    // Map data with pre-fetched information
+    const logsWithDetails = (data || []).map((log) => {
+      const details = log.details as any
+      const surgery = details?.surgery_id ? surgeriesMap.get(details.surgery_id) || null : null
+      const salonName = details?.salon_id ? salonsMap.get(details.salon_id) || null : null
+      const oldSalonName = details?.old_salon_id ? salonsMap.get(details.old_salon_id) || null : null
+
+      return {
+        ...log,
+        surgery,
+        salonName,
+        oldSalonName,
+      }
+    })
+
+    console.log("[v0] Successfully processed activity logs")
+    return logsWithDetails
+  } catch (error) {
+    console.error("[v0] Error in getActivityLogs:", error)
     return []
   }
+}
 
-  return data || []
+export async function getActivityLogsCount() {
+  const supabase = createAdminClient()
+
+  const { count, error } = await supabase.from("activity_logs").select("*", { count: "exact", head: true })
+
+  if (error) {
+    console.error("[v0] Error fetching activity logs count:", error)
+    return 0
+  }
+
+  return count || 0
 }
 
 // Surgery Management

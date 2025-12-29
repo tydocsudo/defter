@@ -2,29 +2,150 @@
 
 import { useEffect, useState } from "react"
 import type { ActivityLog } from "@/lib/types"
-import { getActivityLogs } from "@/lib/actions/admin"
+import { getActivityLogs, getActivityLogsCount } from "@/lib/actions/admin"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from "@/lib/utils/date-formatter"
+
+type ActivityLogWithSurgery = ActivityLog & {
+  surgery?: {
+    patient_name: string
+    surgery_date: string | null
+    is_waiting_list: boolean
+  } | null
+  salonName?: string | null
+  oldSalonName?: string | null
+}
+
+function formatActivityDetails(log: ActivityLogWithSurgery): string {
+  try {
+    if (!log.details) return "-"
+
+    const details = log.details as any
+    const parts: string[] = []
+
+    switch (log.action) {
+      case "Hasta Eklendi":
+        // Show nothing extra - patient name is already in its own column
+        break
+
+      case "Hasta Güncellendi":
+        if (details.changes && typeof details.changes === "object") {
+          const changesList: string[] = []
+
+          // Map field names to Turkish
+          const fieldNames: Record<string, string> = {
+            patient_name: "Hasta Adı",
+            protocol_number: "Protokol No",
+            indication: "Tanı",
+            procedure_name: "Operasyon",
+            surgery_date: "Ameliyat Tarihi",
+            phone_number_1: "Telefon 1",
+            phone_number_2: "Telefon 2",
+          }
+
+          Object.entries(details.changes).forEach(([key, value]: [string, any]) => {
+            try {
+              const fieldName = fieldNames[key] || key
+              const oldVal = value?.old || "-"
+              const newVal = value?.new || "-"
+
+              // Format dates properly
+              if (key === "surgery_date") {
+                const formattedOld = oldVal !== "-" ? formatDateDDMMYYYY(oldVal) : "-"
+                const formattedNew = newVal !== "-" ? formatDateDDMMYYYY(newVal) : "-"
+                changesList.push(`${fieldName}: ${formattedOld} → ${formattedNew}`)
+              } else {
+                changesList.push(`${fieldName}: ${oldVal} → ${newVal}`)
+              }
+            } catch (err) {
+              console.error("[v0] Error formatting change detail:", err)
+            }
+          })
+
+          parts.push(...changesList)
+        }
+        break
+
+      case "Hasta Onaylandı":
+        parts.push("✓ Onaylandı")
+        break
+
+      case "Onay Kaldırıldı":
+        parts.push("✗ Onay kaldırıldı")
+        break
+
+      case "Bekleme Listesine Alındı":
+        if (log.oldSalonName) {
+          parts.push(`${log.oldSalonName}'dan kaldırıldı`)
+        }
+        if (details.old_surgery_date) {
+          try {
+            parts.push(`Eski tarih: ${formatDateDDMMYYYY(details.old_surgery_date)}`)
+          } catch (err) {
+            console.error("[v0] Error formatting old surgery date:", err)
+          }
+        }
+        break
+
+      case "Bekleme Listesinden Atandı":
+        if (log.salonName) {
+          parts.push(`${log.salonName}'e atandı`)
+        }
+        if (details.surgery_date) {
+          try {
+            parts.push(`Tarih: ${formatDateDDMMYYYY(details.surgery_date)}`)
+          } catch (err) {
+            console.error("[v0] Error formatting surgery date:", err)
+          }
+        }
+        break
+
+      default:
+        break
+    }
+
+    return parts.length > 0 ? parts.join(" | ") : "-"
+  } catch (error) {
+    console.error("[v0] Error in formatActivityDetails:", error)
+    return "-"
+  }
+}
 
 export function ActivityLogs() {
-  const [logs, setLogs] = useState<ActivityLog[]>([])
+  const [logs, setLogs] = useState<ActivityLogWithSurgery[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [totalCount, setTotalCount] = useState(0)
 
   useEffect(() => {
     async function fetchLogs() {
+      setIsLoading(true)
       try {
-        const data = await getActivityLogs(100)
+        console.log("[v0] ActivityLogs: Fetching logs for page", currentPage, "with pageSize", pageSize)
+        const offset = (currentPage - 1) * pageSize
+        const [data, count] = await Promise.all([getActivityLogs(pageSize, offset), getActivityLogsCount()])
+        console.log("[v0] ActivityLogs: Received", data.length, "logs, total count:", count)
         setLogs(data as any)
+        setTotalCount(count)
       } catch (error) {
-        console.error("Failed to fetch activity logs:", error)
+        console.error("[v0] ActivityLogs: Failed to fetch activity logs:", error)
+        setLogs([])
+        setTotalCount(0)
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchLogs()
-  }, [])
+  }, [currentPage, pageSize])
+
+  const totalPages = Math.ceil(totalCount / pageSize)
 
   return (
     <Card>
@@ -38,38 +159,118 @@ export function ActivityLogs() {
         ) : logs.length === 0 ? (
           <div className="text-center py-8 text-gray-500">Henüz bir işlem kaydı yok</div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tarih/Saat</TableHead>
-                <TableHead>Kullanıcı</TableHead>
-                <TableHead>İşlem</TableHead>
-                <TableHead>Detaylar</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="text-sm">{new Date(log.created_at).toLocaleString("tr-TR")}</TableCell>
-                  <TableCell>
-                    {log.user ? (
-                      <span className="font-medium">
-                        {log.user.first_name} {log.user.last_name}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">Bilinmeyen</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{log.action}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-600">
-                    {log.details && <pre className="text-xs">{JSON.stringify(log.details, null, 2)}</pre>}
-                  </TableCell>
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Hasta Adı</TableHead>
+                  <TableHead>Kullanıcı</TableHead>
+                  <TableHead>İşlem</TableHead>
+                  <TableHead>Ameliyat Tarihi</TableHead>
+                  <TableHead>İşlem Detayı</TableHead>
+                  <TableHead>Tarih/Saat</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => {
+                  try {
+                    return (
+                      <TableRow key={log.id}>
+                        <TableCell className="font-medium">
+                          {log.surgery?.patient_name || (log.details as any)?.patient_name || "-"}
+                        </TableCell>
+
+                        <TableCell>
+                          {log.user ? (
+                            <span>
+                              {log.user.first_name} {log.user.last_name}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">Bilinmeyen</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <Badge variant="outline">{log.action}</Badge>
+                        </TableCell>
+
+                        <TableCell>
+                          {log.surgery?.is_waiting_list ? (
+                            <Badge variant="secondary">Bekleme Listesinde</Badge>
+                          ) : log.surgery?.surgery_date ? (
+                            formatDateDDMMYYYY(log.surgery.surgery_date)
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-sm text-gray-600">{formatActivityDetails(log)}</TableCell>
+
+                        <TableCell className="text-sm text-gray-500">
+                          {formatDateTimeDDMMYYYY(log.created_at)}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  } catch (error) {
+                    console.error("[v0] Error rendering log row:", log.id, error)
+                    return (
+                      <TableRow key={log.id}>
+                        <TableCell colSpan={6} className="text-center text-red-500">
+                          Hata: Bu log gösterilemiyor
+                        </TableCell>
+                      </TableRow>
+                    )
+                  }
+                })}
+              </TableBody>
+            </Table>
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Sayfa başına:</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(value) => {
+                    setPageSize(Number(value))
+                    setCurrentPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">
+                  Sayfa {currentPage} / {totalPages} (Toplam {totalCount} kayıt)
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

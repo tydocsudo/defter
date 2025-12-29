@@ -562,16 +562,17 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors }: FlipbookV
               )}
             </Button>
 
-            {showOperationsList && (
+            {showOperationsList && selectedDayForList && (
               <div className="p-4">
                 <FlipbookOperationsList
-                  selectedDate={selectedDayForList} // Pass selected date
+                  selectedDate={selectedDayForList}
                   surgeries={surgeries}
                   doctors={doctors}
                   salons={salons}
                   onDataChange={handleDataChange}
-                  weekDays={weekDays} // Added missing weekDays prop
-                  onDateChange={setSelectedDayForList} // Added missing onDateChange prop
+                  weekDays={weekDays}
+                  onDateChange={setSelectedDayForList}
+                  selectedSalonId={selectedSalonId}
                 />
               </div>
             )}

@@ -24,6 +24,7 @@ interface FlipbookOperationsListProps {
   onDataChange: () => void
   weekDays?: Date[]
   onDateChange?: (date: Date) => void
+  selectedSalonId?: string // Added selectedSalonId prop for salon filtering
 }
 
 function formatActivityDetails(log: ActivityLog, salons: Salon[]): string {
@@ -124,6 +125,7 @@ export function FlipbookOperationsList({
   onDataChange,
   weekDays,
   onDateChange,
+  selectedSalonId, // Accept selectedSalonId prop
 }: FlipbookOperationsListProps) {
   const [selectedSurgery, setSelectedSurgery] = useState<string | null>(null)
   const [editingSurgery, setEditingSurgery] = useState<SurgeryWithDetails | null>(null)
@@ -141,11 +143,17 @@ export function FlipbookOperationsList({
     ? surgeries.filter((s) => {
         if (!s.surgery_date) return false
         const surgeryDate = new Date(s.surgery_date)
-        return (
+        const dateMatch =
           surgeryDate.getFullYear() === selectedDate.getFullYear() &&
           surgeryDate.getMonth() === selectedDate.getMonth() &&
           surgeryDate.getDate() === selectedDate.getDate()
-        )
+
+        // If salon is selected, filter by salon
+        if (selectedSalonId) {
+          return dateMatch && s.salon_id === selectedSalonId
+        }
+
+        return dateMatch
       })
     : []
 
@@ -235,44 +243,34 @@ export function FlipbookOperationsList({
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <CardTitle>
-              {selectedDate ? (
-                <>Günlük Ameliyat Listesi - {format(selectedDate, "d MMMM yyyy EEEE", { locale: tr })}</>
-              ) : (
-                "Günlük Ameliyat Listesi"
-              )}
-            </CardTitle>
-            {weekDays && onDateChange && (
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Hasta ara..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            )}
-          </div>
-          {weekDays && onDateChange && (
-            <div className="flex flex-wrap gap-2 mt-4">
-              {weekDays.map((day) => {
-                const dayStr = format(day, "yyyy-MM-dd")
-                const isSelected = dayStr === format(selectedDate, "yyyy-MM-dd")
-                return (
-                  <Button
-                    key={dayStr}
-                    variant={isSelected ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => onDateChange(day)}
-                    className="flex-shrink-0"
-                  >
-                    {format(day, "d MMMM EEEE", { locale: tr })}
-                  </Button>
-                )
-              })}
+            
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Hasta ara..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
-          )}
+          </div>
+          <div className="flex flex-wrap gap-2 mt-4">
+            {weekDays?.map((day) => {
+              const dayStr = format(day, "yyyy-MM-dd")
+              const isSelected = dayStr === format(selectedDate, "yyyy-MM-dd")
+              return (
+                <Button
+                  key={dayStr}
+                  variant={isSelected ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onDateChange?.(day)}
+                  className="flex-shrink-0"
+                >
+                  {format(day, "d MMMM EEEE", { locale: tr })}
+                </Button>
+              )
+            })}
+          </div>
         </CardHeader>
         <CardContent>
           {filteredSurgeries.length === 0 ? (

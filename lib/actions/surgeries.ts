@@ -97,6 +97,7 @@ export async function updateSurgery(
     is_waiting_list: boolean
     is_approved: boolean
   }>,
+  skipLogging = false,
 ) {
   const user = await getCurrentUser()
   if (!user) throw new Error("Unauthorized")
@@ -124,25 +125,27 @@ export async function updateSurgery(
 
   console.log("[v0] Surgery updated successfully:", data)
 
-  const detailedChanges: any = {}
-  if (oldData) {
-    Object.keys(formData).forEach((key) => {
-      const oldValue = oldData[key as keyof typeof oldData]
-      const newValue = formData[key as keyof typeof formData]
-      if (oldValue !== newValue) {
-        detailedChanges[key] = {
-          old: oldValue,
-          new: newValue,
+  if (!skipLogging) {
+    const detailedChanges: any = {}
+    if (oldData) {
+      Object.keys(formData).forEach((key) => {
+        const oldValue = oldData[key as keyof typeof oldData]
+        const newValue = formData[key as keyof typeof formData]
+        if (oldValue !== newValue) {
+          detailedChanges[key] = {
+            old: oldValue,
+            new: newValue,
+          }
         }
-      }
+      })
+    }
+
+    await logActivity("Hasta Güncellendi", {
+      surgery_id: surgeryId,
+      patient_name: data.patient_name,
+      changes: detailedChanges,
     })
   }
-
-  await logActivity("Hasta Güncellendi", {
-    surgery_id: surgeryId,
-    changes: formData,
-    detailed_changes: detailedChanges,
-  })
 
   revalidatePath("/")
   revalidatePath("/waiting-list")
@@ -170,15 +173,29 @@ export async function deleteSurgery(surgeryId: string) {
 }
 
 export async function moveToWaitingList(surgeryId: string) {
+  const supabase = createAdminClient()
+  const { data: surgery } = await supabase
+    .from("surgeries")
+    .select("patient_name, salon_id, surgery_date")
+    .eq("id", surgeryId)
+    .single()
+
   await logActivity("Bekleme Listesine Alındı", {
     surgery_id: surgeryId,
+    patient_name: surgery?.patient_name,
+    old_salon_id: surgery?.salon_id,
+    old_surgery_date: surgery?.surgery_date,
   })
 
-  return updateSurgery(surgeryId, {
-    is_waiting_list: true,
-    salon_id: null,
-    surgery_date: null,
-  })
+  return updateSurgery(
+    surgeryId,
+    {
+      is_waiting_list: true,
+      salon_id: null,
+      surgery_date: null,
+    },
+    true,
+  )
 }
 
 export async function assignFromWaitingList(surgeryId: string, salonId: string, surgeryDate: string) {
@@ -210,6 +227,7 @@ export async function assignFromWaitingList(surgeryId: string, salonId: string, 
 
   await logActivity("Bekleme Listesinden Atandı", {
     surgery_id: surgeryId,
+    patient_name: data.patient_name,
     salon_id: salonId,
     surgery_date: surgeryDate,
   })
@@ -244,6 +262,7 @@ export async function approveSurgery(surgeryId: string) {
 
   await logActivity("Hasta Onaylandı", {
     surgery_id: surgeryId,
+    patient_name: data.patient_name,
   })
 
   revalidatePath("/")
@@ -276,6 +295,7 @@ export async function unapproveSurgery(surgeryId: string) {
 
   await logActivity("Onay Kaldırıldı", {
     surgery_id: surgeryId,
+    patient_name: data.patient_name,
   })
 
   revalidatePath("/")

@@ -20,8 +20,6 @@ export async function GET(request: NextRequest) {
     .map((surgery) => ({
       ...surgery,
       responsible_doctor: mockDoctors.find((d) => d.id === surgery.responsible_doctor_id) || null,
-      senior_resident: mockDoctors.find((d) => d.id === surgery.senior_resident_id) || null,
-      junior_resident: mockDoctors.find((d) => d.id === surgery.junior_resident_id) || null,
     }))
 
   // Generate HTML for PDF
@@ -136,15 +134,13 @@ function generatePDFHTML(salon: any, surgeries: any[], date: string) {
   <table>
     <thead>
       <tr>
-        <th style="width: 5%;">Sıra</th>
-        <th style="width: 15%;">Hasta Adı</th>
-        <th style="width: 10%;">Protokol No</th>
-        <th style="width: 10%;">Endikasyon</th>
-        <th style="width: 20%;">Yapılacak İşlem</th>
-        <th style="width: 12%;">Sorumlu Hoca</th>
-        <th style="width: 10%;">Kıdemli</th>
-        <th style="width: 10%;">Çömez</th>
-        <th style="width: 8%;">Telefon</th>
+        <th style="width: 8%;">Sıra</th>
+        <th style="width: 20%;">Hasta Adı</th>
+        <th style="width: 12%;">Protokol No</th>
+        <th style="width: 15%;">Endikasyon</th>
+        <th style="width: 25%;">Yapılacak İşlem</th>
+        <th style="width: 15%;">Sorumlu Hoca</th>
+        <th style="width: 10%;">Telefon</th>
       </tr>
     </thead>
     <tbody>
@@ -158,8 +154,6 @@ function generatePDFHTML(salon: any, surgeries: any[], date: string) {
           <td>${surgery.indication}</td>
           <td>${surgery.procedure_name}</td>
           <td>${surgery.responsible_doctor?.name || "-"}</td>
-          <td>${surgery.senior_resident?.name || "-"}</td>
-          <td>${surgery.junior_resident?.name || "-"}</td>
           <td style="font-size: 9pt;">
             ${surgery.phone_number_1}<br/>
             ${surgery.phone_number_2}

@@ -17,15 +17,12 @@ export default async function WaitingListPage() {
 
   const supabase = await createClient()
 
-  // Fetch waiting list surgeries with related data
   const [surgeriesRes, doctorsRes, salonsRes] = await Promise.all([
     supabase
       .from("surgeries")
       .select(`
         *,
-        responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name),
-        senior_resident:doctors!surgeries_senior_resident_id_fkey(id, name),
-        junior_resident:doctors!surgeries_junior_resident_id_fkey(id, name)
+        responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name)
       `)
       .eq("is_waiting_list", true)
       .is("salon_id", null)

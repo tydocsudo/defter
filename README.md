@@ -12,7 +12,7 @@ Hastane ameliyathaneleri için kapsamlı bir ameliyat planlama ve takip sistemi.
 ### Ameliyat Yönetimi
 - Günlük ameliyat planlaması
 - Hasta bilgileri (ad, protokol no, endikasyon, işlem)
-- Doktor atamaları (sorumlu, kıdemli, çömez)
+- Doktor atamaları (sorumlu hoca)
 - Hasta iletişim bilgileri
 
 ### Takvim Görünümleri

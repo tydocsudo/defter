@@ -10,17 +10,25 @@ export async function GET(request: NextRequest) {
   const endDate = searchParams.get("end_date")
   const isWaitingList = searchParams.get("is_waiting_list")
 
+  console.log("[v0] Surgery API called with params:", {
+    salonId,
+    startDate,
+    endDate,
+    isWaitingList,
+  })
+
   let query = supabase.from("surgeries").select(`
       *,
       responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name),
-      senior_resident:doctors!surgeries_senior_resident_id_fkey(id, name),
-      junior_resident:doctors!surgeries_junior_resident_id_fkey(id, name),
-      salon:salons(id, name)
+      salon:salons(id, name),
+      creator:profiles!surgeries_created_by_fkey(id, username, first_name, last_name),
+      approver:profiles!surgeries_approved_by_fkey(id, username, first_name, last_name)
     `)
 
   if (isWaitingList === "true") {
     query = query.eq("is_waiting_list", true)
-  } else if (isWaitingList === "false") {
+  } else {
+    // Default to false to show only scheduled surgeries
     query = query.eq("is_waiting_list", false)
   }
 
@@ -29,7 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (startDate && endDate) {
-    query = query.gte("surgery_date", startDate).lte("surgery_date", endDate)
+    query = query.not("surgery_date", "is", null).gte("surgery_date", startDate).lte("surgery_date", endDate)
   }
 
   const { data, error } = await query.order("surgery_date", { ascending: true })
@@ -40,5 +48,13 @@ export async function GET(request: NextRequest) {
   }
 
   console.log("[v0] Fetched surgeries from Supabase:", data?.length || 0)
+  if (data && data.length > 0) {
+    console.log("[v0] Sample surgery data:", {
+      count: data.length,
+      dates: data.slice(0, 3).map((s) => s.surgery_date),
+      salons: data.slice(0, 3).map((s) => s.salon?.name),
+    })
+  }
+
   return NextResponse.json(data || [])
 }

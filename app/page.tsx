@@ -6,7 +6,7 @@ import { MonthlyView } from "@/components/calendar/monthly-view"
 import { AddSurgeryButton } from "@/components/add-surgery-button"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { BookOpen, FileDown, FileSpreadsheet } from "lucide-react"
+import { BookOpen } from "lucide-react"
 
 export default async function HomePage() {
   const user = await getCurrentUser()
@@ -17,14 +17,42 @@ export default async function HomePage() {
 
   const supabase = await createClient()
 
-  // Fetch salons and doctors from Supabase
-  const [salonsRes, doctorsRes] = await Promise.all([
-    supabase.from("salons").select("*").order("order_index"),
+  const salonsRes = await supabase.from("salons").select("*").order("order_index")
+  const salons = salonsRes.data || []
+  const defaultSalonId = salons[0]?.id
+
+  const [doctorsRes, surgeriesRes, dayNotesRes] = await Promise.all([
     supabase.from("doctors").select("*").order("name"),
+    supabase
+      .from("surgeries")
+      .select(`
+        *,
+        salon:salons(id, name),
+        responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name),
+        creator:profiles!surgeries_created_by_fkey(id, username, first_name, last_name),
+        approver:profiles!surgeries_approved_by_fkey(id, username, first_name, last_name),
+        surgery_notes(id, note, created_at, created_by)
+      `)
+      .eq("is_waiting_list", false)
+      .eq("salon_id", defaultSalonId)
+      .not("surgery_date", "is", null)
+      .order("surgery_date", { ascending: true }),
+    supabase.from("day_notes").select("*").eq("salon_id", defaultSalonId).order("note_date", { ascending: true }),
   ])
 
-  const salons = salonsRes.data || []
   const doctors = doctorsRes.data || []
+  const surgeries = surgeriesRes.data || []
+  const dayNotes = dayNotesRes.data || []
+
+  console.log("[v0] Server-side fetched ALL surgeries for salon:", surgeries.length)
+  if (surgeries.length > 0) {
+    const dec31Surgeries = surgeries.filter((s: any) => s.surgery_date === "2025-12-31")
+    console.log("[v0] Dec 31 surgeries in initial data:", dec31Surgeries.length)
+    console.log(
+      "[v0] Dec 31 patients:",
+      dec31Surgeries.map((s: any) => s.patient_name),
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -45,30 +73,16 @@ export default async function HomePage() {
                 Defter Görünümü
               </Button>
             </Link>
-            <div className="flex gap-2 w-full">
-              <Button
-                id="export-pdf-button"
-                className="flex-1 flex items-center justify-center gap-2 bg-transparent"
-                variant="outline"
-                disabled
-              >
-                <FileDown className="h-4 w-4" />
-                PDF İndir
-              </Button>
-              <Button
-                id="export-excel-button"
-                className="flex-1 flex items-center justify-center gap-2 bg-transparent"
-                variant="outline"
-                disabled
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Excel İndir
-              </Button>
-            </div>
           </div>
         </div>
 
-        <MonthlyView salons={salons} doctors={doctors} isAdmin={user.is_admin} />
+        <MonthlyView
+          salons={salons}
+          doctors={doctors}
+          isAdmin={user.is_admin}
+          initialSurgeries={surgeries}
+          initialDayNotes={dayNotes}
+        />
       </main>
     </div>
   )

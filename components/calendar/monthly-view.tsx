@@ -16,17 +16,26 @@ interface MonthlyViewProps {
   salons: Salon[]
   doctors: Doctor[]
   isAdmin: boolean
+  initialSurgeries?: SurgeryWithDetails[]
+  initialDayNotes?: DayNote[]
 }
 
-export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
+export function MonthlyView({
+  salons,
+  doctors,
+  isAdmin,
+  initialSurgeries = [],
+  initialDayNotes = [],
+}: MonthlyViewProps) {
   const [selectedSalon, setSelectedSalon] = useState<string>(salons[0]?.id || "")
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [surgeries, setSurgeries] = useState<SurgeryWithDetails[]>([])
-  const [dayNotes, setDayNotes] = useState<DayNote[]>([])
+  const [surgeries, setSurgeries] = useState<SurgeryWithDetails[]>(initialSurgeries)
+  const [dayNotes, setDayNotes] = useState<DayNote[]>(initialDayNotes)
   const [assignedDoctors, setAssignedDoctors] = useState<DailyAssignedDoctor[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [showOperationsList, setShowOperationsList] = useState(false)
+  const [hasUsedInitialData, setHasUsedInitialData] = useState(false)
 
   const currentYear = currentDate.getFullYear()
   const currentMonth = currentDate.getMonth()
@@ -34,43 +43,81 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     try {
-      const startDate = new Date(currentYear, currentMonth, 1).toISOString().split("T")[0]
-      const endDate = new Date(currentYear, currentMonth + 1, 0).toISOString().split("T")[0]
+      console.log("[v0] Client-side fetching ALL data for salon:", selectedSalon)
 
       const [surgeriesRes, notesRes, doctorsRes] = await Promise.all([
-        fetch(`/api/surgeries?salon_id=${selectedSalon}&start_date=${startDate}&end_date=${endDate}`),
-        fetch(`/api/day-notes?salon_id=${selectedSalon}&start_date=${startDate}&end_date=${endDate}`),
-        fetch(`/api/assigned-doctors?salon_id=${selectedSalon}&start_date=${startDate}&end_date=${endDate}`),
+        fetch(`/api/surgeries?salon_id=${selectedSalon}&is_waiting_list=false`),
+        fetch(`/api/day-notes?salon_id=${selectedSalon}`),
+        fetch(`/api/assigned-doctors?salon_id=${selectedSalon}`),
       ])
 
-      const [surgeriesData, notesData, doctorsData] = await Promise.all([
-        surgeriesRes.json(),
-        notesRes.json(),
-        doctorsRes.json(),
-      ])
+      let surgeriesData = []
+      let notesData = []
+      let doctorsData = []
+
+      if (surgeriesRes.ok) {
+        try {
+          surgeriesData = await surgeriesRes.json()
+          console.log("[v0] Client fetched surgeries:", surgeriesData.length)
+          const dec31 = surgeriesData.filter((s: any) => s.surgery_date === "2025-12-31")
+          console.log("[v0] Dec 31 surgeries in client data:", dec31.length)
+        } catch (error) {
+          console.error("[v0] Error parsing surgeries:", error)
+        }
+      }
+
+      if (notesRes.ok) {
+        try {
+          notesData = await notesRes.json()
+        } catch (error) {
+          console.error("[v0] Error parsing notes:", error)
+        }
+      }
+
+      if (doctorsRes.ok) {
+        try {
+          doctorsData = await doctorsRes.json()
+        } catch (error) {
+          console.error("[v0] Error parsing doctors:", error)
+        }
+      }
 
       setSurgeries(surgeriesData)
       setDayNotes(notesData)
       setAssignedDoctors(doctorsData)
     } catch (error) {
-      console.error("Error fetching data:", error)
+      console.error("[v0] Error fetching data:", error)
     } finally {
       setIsLoading(false)
     }
-  }, [selectedSalon, currentYear, currentMonth])
+  }, [selectedSalon])
 
   useEffect(() => {
+    if (!hasUsedInitialData) {
+      console.log("[v0] First render - using initial server-side data")
+      console.log("[v0] Initial surgeries count:", initialSurgeries.length)
+      const dec31Initial = initialSurgeries.filter((s) => s.surgery_date === "2025-12-31")
+      console.log(
+        "[v0] Dec 31 in initial data:",
+        dec31Initial.length,
+        dec31Initial.map((s) => s.patient_name),
+      )
+      setHasUsedInitialData(true)
+      return
+    }
+
+    console.log("[v0] Salon changed, fetching new data")
     fetchData()
-  }, [fetchData])
+  }, [selectedSalon, fetchData, hasUsedInitialData, initialSurgeries])
 
   useEffect(() => {
     const handleWaitingListChange = () => {
-      console.log("[v0] Waiting list changed event received, refreshing data")
+      console.log("[v0] Waiting list changed, refreshing")
       fetchData()
     }
 
     const handleCalendarDataChange = () => {
-      console.log("[v0] Calendar data changed event received, refreshing data")
+      console.log("[v0] Calendar data changed, refreshing")
       fetchData()
     }
 
@@ -82,27 +129,6 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
       window.removeEventListener("calendarDataChanged", handleCalendarDataChange)
     }
   }, [fetchData])
-
-  useEffect(() => {
-    if (selectedDate && selectedSalon) {
-      const pdfButton = document.getElementById("export-pdf-button") as HTMLButtonElement
-      const excelButton = document.getElementById("export-excel-button") as HTMLButtonElement
-
-      if (pdfButton) {
-        pdfButton.disabled = false
-        pdfButton.onclick = () => {
-          window.open(`/api/export/pdf?salon_id=${selectedSalon}&date=${selectedDate}`, "_blank")
-        }
-      }
-
-      if (excelButton) {
-        excelButton.disabled = false
-        excelButton.onclick = () => {
-          window.open(`/api/export/excel?salon_id=${selectedSalon}&date=${selectedDate}`, "_blank")
-        }
-      }
-    }
-  }, [selectedDate, selectedSalon])
 
   const handlePreviousMonth = () => {
     setCurrentDate(new Date(currentYear, currentMonth - 1, 1))
@@ -133,6 +159,13 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
     "Kasım",
     "Aralık",
   ]
+
+  console.log("[v0] MonthlyView render:", {
+    surgeriesCount: surgeries.length,
+    selectedSalon,
+    currentMonth: monthNames[currentMonth],
+    isLoading,
+  })
 
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
