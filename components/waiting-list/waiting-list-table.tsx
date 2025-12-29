@@ -32,6 +32,20 @@ interface WaitingListTableProps {
   salons: Salon[]
 }
 
+const getMinDate = () => {
+  const today = new Date()
+  const day = today.getDay()
+  if (day === 6) today.setDate(today.getDate() + 2)
+  if (day === 0) today.setDate(today.getDate() + 1)
+  return today.toISOString().split("T")[0]
+}
+
+const isWeekend = (dateString: string) => {
+  const date = new Date(dateString + "T00:00:00")
+  const day = date.getDay()
+  return day === 0 || day === 6
+}
+
 export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTableProps) {
   const [selectedSurgery, setSelectedSurgery] = useState<string | null>(null)
   const [assignSalonId, setAssignSalonId] = useState("")
@@ -49,11 +63,17 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
   const [availableSlots, setAvailableSlots] = useState<any[]>([])
   const [isSearchingSlots, setIsSearchingSlots] = useState(false)
   const [autoFindStep, setAutoFindStep] = useState<"patient" | "salon" | "doctor" | "results">("patient")
+  const [dateError, setDateError] = useState<string | null>(null)
 
   const router = useRouter()
 
   const handleAssign = async () => {
     if (!selectedSurgery || !assignSalonId || !assignDate) return
+
+    if (isWeekend(assignDate)) {
+      alert("Cumartesi ve Pazar günleri ameliyat yapılamaz")
+      return
+    }
 
     setIsAssigning(true)
     try {
@@ -61,6 +81,7 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
       setSelectedSurgery(null)
       setAssignSalonId("")
       setAssignDate("")
+      setDateError(null)
 
       window.location.href = `/fliphtml?date=${assignDate}`
     } catch (error: any) {
@@ -272,7 +293,21 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
             </div>
             <div className="space-y-2">
               <Label htmlFor="assign_date">Ameliyat Tarihi</Label>
-              <Input id="assign_date" type="date" value={assignDate} onChange={(e) => setAssignDate(e.target.value)} />
+              <Input
+                id="assign_date"
+                type="date"
+                value={assignDate}
+                onChange={(e) => {
+                  setAssignDate(e.target.value)
+                  if (e.target.value && isWeekend(e.target.value)) {
+                    setDateError("Cumartesi ve Pazar günleri seçilemez")
+                  } else {
+                    setDateError(null)
+                  }
+                }}
+                min={getMinDate()}
+              />
+              {dateError && <p className="text-xs text-red-600">{dateError}</p>}
             </div>
           </div>
           <DialogFooter>

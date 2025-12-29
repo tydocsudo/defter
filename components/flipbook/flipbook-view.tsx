@@ -13,6 +13,7 @@ import {
   addDays,
   parseISO,
   isValid,
+  subDays,
 } from "date-fns" // Import subMonths and addMonths
 import { useState, useEffect, useCallback, useRef } from "react"
 import { format } from "date-fns"
@@ -57,6 +58,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { SurgeryForm } from "@/components/surgery-form"
 
 interface SurgeryWithNotes extends SurgeryWithDetails {
   surgery_notes?: SurgeryNote[]
@@ -70,7 +72,13 @@ interface FlipbookViewProps {
   initialDate?: string // Added initialDate prop to scroll to specific date
 }
 
-export function FlipbookView({ salons, surgeries, dayNotes, doctors, initialDate }: FlipbookViewProps) {
+export function FlipbookView({
+  salons: initialSalons,
+  surgeries,
+  dayNotes,
+  doctors: initialDoctors,
+  initialDate,
+}: FlipbookViewProps) {
   const [selectedSalonId, setSelectedSalonId] = useState<string>("")
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [isFlipping, setIsFlipping] = useState(false)
@@ -94,6 +102,9 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors, initialDate
   const hasScrolledToInitialDate = useRef(false)
   const router = useRouter()
 
+  const [doctors, setDoctors] = useState<Doctor[]>(initialDoctors)
+  const [salons, setSalons] = useState<Salon[]>(initialSalons)
+
   useEffect(() => {
     if (salons.length > 0 && !selectedSalonId) {
       setSelectedSalonId(salons[0].id)
@@ -110,14 +121,38 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors, initialDate
           hasScrolledToInitialDate.current = true
           console.log("[v0] Scrolled to week containing:", initialDate)
 
-          // Clear the date parameter from URL after scrolling
-          router.replace("/fliphtml", { scroll: false })
+          // Clean up URL parameter after scrolling to prevent incorrect redirects
+          setTimeout(() => {
+            router.replace("/fliphtml", { scroll: false })
+          }, 500)
         }
       } catch (error) {
         console.error("[v0] Error parsing initialDate:", error)
       }
     }
   }, [initialDate, router])
+
+  useEffect(() => {
+    const fetchDoctorsAndSalons = async () => {
+      try {
+        const [doctorsRes, salonsRes] = await Promise.all([fetch("/api/doctors"), fetch("/api/salons")])
+
+        if (doctorsRes.ok) {
+          const doctorsData = await doctorsRes.json()
+          setDoctors(doctorsData)
+        }
+
+        if (salonsRes.ok) {
+          const salonsData = await salonsRes.json()
+          setSalons(salonsData)
+        }
+      } catch (error) {
+        console.error("[v0] Error fetching doctors/salons:", error)
+      }
+    }
+
+    fetchDoctorsAndSalons()
+  }, [])
 
   const getWeekDays = (start: Date) => {
     return eachDayOfInterval({ start, end: addDays(start, 4) }) // Mon-Fri
@@ -152,7 +187,23 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors, initialDate
   }, [isFlipping])
 
   const jumpToDate = useCallback((date: Date) => {
-    setCurrentWeekStart(date)
+    // Find the Monday of the week containing the selected date
+    const dayOfWeek = date.getDay()
+
+    // If it's Sunday (0), go back 6 days to previous Monday
+    // If it's Monday (1), stay on that day
+    // If it's Tuesday-Saturday (2-6), go back to Monday
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+    const monday = subDays(date, daysToSubtract)
+
+    console.log("[v0] Jump to date:", {
+      selectedDate: format(date, "yyyy-MM-dd (EEEE)", { locale: tr }),
+      calculatedMonday: format(monday, "yyyy-MM-dd (EEEE)", { locale: tr }),
+      dayOfWeek,
+      daysToSubtract,
+    })
+
+    setCurrentWeekStart(monday)
     setIsCalendarOpen(false)
   }, [])
 
@@ -728,6 +779,21 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors, initialDate
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* SurgeryForm for editing */}
+      {editingSurgery && (
+        <SurgeryForm
+          open={!!editingSurgery}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingSurgery(null)
+            }
+          }}
+          doctors={doctors}
+          salons={salons}
+          surgery={editingSurgery}
+        />
+      )}
     </div>
   )
 }
@@ -769,6 +835,8 @@ function MiniCalendar({ currentDate, onSelectDate }: { currentDate: Date; onSele
         {daysInMonth.map((day) => {
           const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
           const isSelected = currentDate && format(day, "yyyy-MM-dd") === format(currentDate, "yyyy-MM-dd")
+          const dayOfWeek = day.getDay()
+          const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6
 
           return (
             <Button
@@ -779,8 +847,14 @@ function MiniCalendar({ currentDate, onSelectDate }: { currentDate: Date; onSele
                 "h-9 w-9 p-0 font-normal",
                 isToday && "border border-primary",
                 isSelected && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                isWeekendDay && "opacity-30 cursor-not-allowed hover:bg-transparent",
               )}
-              onClick={() => onSelectDate(day)}
+              onClick={() => {
+                if (!isWeekendDay) {
+                  onSelectDate(day)
+                }
+              }}
+              disabled={isWeekendDay}
             >
               {format(day, "d")}
             </Button>
