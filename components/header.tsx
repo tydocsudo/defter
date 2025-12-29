@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { User, LogOut, Settings, Home, BookOpen, Clock } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export async function Header() {
   const user = await getCurrentUser()
@@ -18,6 +19,11 @@ export async function Header() {
     <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
         <div className="flex items-center gap-2 md:gap-3">
+          <Link href="/" className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Surgery Calendar Logo" width={40} height={40} className="object-contain" />
+            <span className="hidden md:inline font-semibold text-lg">Ameliyat Planlama</span>
+          </Link>
+          <div className="h-6 w-px bg-gray-300 mx-2" />
           <Link href="/">
             <Button variant="ghost" size="sm" className="gap-2">
               <Home className="h-4 w-4" />

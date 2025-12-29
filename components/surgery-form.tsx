@@ -33,8 +33,6 @@ export function SurgeryForm({ open, onOpenChange, doctors, salons, defaultDate, 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [assignmentType, setAssignmentType] = useState<"salon" | "waiting">("salon")
-  const [seniorCustomName, setSeniorCustomName] = useState("")
-  const [juniorCustomName, setJuniorCustomName] = useState("")
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -56,10 +54,6 @@ export function SurgeryForm({ open, onOpenChange, doctors, salons, defaultDate, 
         indication: formData.get("indication") as string,
         procedure_name: formData.get("procedure_name") as string,
         responsible_doctor_id: (formData.get("responsible_doctor_id") as string) || null,
-        senior_resident_id: null,
-        junior_resident_id: null,
-        senior_resident_custom: seniorCustomName || null,
-        junior_resident_custom: juniorCustomName || null,
         phone_number_1: formData.get("phone_number_1") as string,
         phone_number_2: formData.get("phone_number_2") as string,
         salon_id: assignmentType === "waiting" ? null : (formData.get("salon_id") as string) || null,
@@ -74,8 +68,6 @@ export function SurgeryForm({ open, onOpenChange, doctors, salons, defaultDate, 
       onOpenChange(false)
       ;(e.target as HTMLFormElement).reset()
       setAssignmentType("salon")
-      setSeniorCustomName("")
-      setJuniorCustomName("")
 
       // Trigger refresh events
       window.dispatchEvent(new Event("waitingListChanged"))
@@ -138,46 +130,20 @@ export function SurgeryForm({ open, onOpenChange, doctors, salons, defaultDate, 
               <Textarea id="procedure_name" name="procedure_name" required disabled={isLoading} rows={3} />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="responsible_doctor_id">Sorumlu Hoca</Label>
-                <Select name="responsible_doctor_id" disabled={isLoading}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seçiniz" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {doctors.map((doctor) => (
-                      <SelectItem key={doctor.id} value={doctor.id}>
-                        {doctor.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="senior_custom">Salon Kıdemlisi</Label>
-                <Input
-                  id="senior_custom"
-                  name="senior_custom"
-                  value={seniorCustomName}
-                  onChange={(e) => setSeniorCustomName(e.target.value)}
-                  placeholder="İsim girin"
-                  disabled={isLoading}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="junior_custom">Salon Çömezi</Label>
-                <Input
-                  id="junior_custom"
-                  name="junior_custom"
-                  value={juniorCustomName}
-                  onChange={(e) => setJuniorCustomName(e.target.value)}
-                  placeholder="İsim girin"
-                  disabled={isLoading}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="responsible_doctor_id">Sorumlu Hoca</Label>
+              <Select name="responsible_doctor_id" disabled={isLoading}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seçiniz" />
+                </SelectTrigger>
+                <SelectContent>
+                  {doctors.map((doctor) => (
+                    <SelectItem key={doctor.id} value={doctor.id}>
+                      {doctor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

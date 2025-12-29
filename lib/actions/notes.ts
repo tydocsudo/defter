@@ -58,6 +58,8 @@ export async function createDayNote(salonId: string, noteDate: string, note: str
     throw new Error("Salon ID is required")
   }
 
+  console.log("[v0] Creating day note with data:", { salonId, noteDate, note })
+
   const { data, error } = await supabase
     .from("day_notes")
     .insert({
@@ -70,13 +72,14 @@ export async function createDayNote(salonId: string, noteDate: string, note: str
     .single()
 
   if (error) {
-    console.error("[v0] Error creating day note:", error)
-    throw new Error(error.message)
+    console.error("[v0] Error creating day note - Full error:", JSON.stringify(error, null, 2))
+    throw new Error(`Database error: ${error.message} (Code: ${error.code})`)
   }
 
-  console.log("[v0] Created day note:", data)
+  console.log("[v0] Created day note successfully:", data)
 
   revalidatePath("/")
+  revalidatePath("/fliphtml")
   return { success: true, data }
 }
 

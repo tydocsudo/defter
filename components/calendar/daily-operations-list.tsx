@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea"
 import { deleteSurgery, moveToWaitingList } from "@/lib/actions/surgeries"
 import { createSurgeryNote } from "@/lib/actions/notes"
-import { MoreHorizontal, Trash2, MessageSquare, ListX, FileDown, Edit } from "lucide-react"
+import { MoreHorizontal, Trash2, MessageSquare, ListX, FileDown, Edit, Phone } from "lucide-react"
 import { formatDateTurkish } from "@/lib/utils"
 import { SurgeryFormEdit } from "@/components/surgery-form-edit"
 
@@ -126,13 +126,31 @@ export function DailyOperationsList({
                       <TableCell className="font-bold">{index + 1}</TableCell>
                       <TableCell className="font-medium">{surgery.patient_name}</TableCell>
                       <TableCell className="hidden md:table-cell">{surgery.protocol_number}</TableCell>
-                      <TableCell className="max-w-xs">{surgery.procedure_name}</TableCell>
+                      <TableCell className="max-w-[200px] sm:max-w-xs break-words">{surgery.procedure_name}</TableCell>
                       <TableCell className="hidden lg:table-cell">{surgery.responsible_doctor?.name || "-"}</TableCell>
-                      <TableCell className="text-sm hidden md:table-cell">
-                        <div>{surgery.phone_number_1}</div>
-                        <div className="text-gray-500">{surgery.phone_number_2}</div>
+                      <TableCell className="text-xs sm:text-sm hidden md:table-cell">
+                        <div className="space-y-1">
+                          {surgery.phone_number_1 && (
+                            <a
+                              href={`tel:${surgery.phone_number_1}`}
+                              className="flex items-center gap-1 hover:text-blue-600"
+                            >
+                              <Phone className="h-3 w-3" />
+                              {surgery.phone_number_1}
+                            </a>
+                          )}
+                          {surgery.phone_number_2 && (
+                            <a
+                              href={`tel:${surgery.phone_number_2}`}
+                              className="flex items-center gap-1 text-gray-500 hover:text-blue-600"
+                            >
+                              <Phone className="h-3 w-3" />
+                              {surgery.phone_number_2}
+                            </a>
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell className="text-sm hidden lg:table-cell">
+                      <TableCell className="text-xs sm:text-sm hidden lg:table-cell">
                         {surgery.creator ? (
                           <div>
                             {surgery.creator.first_name} {surgery.creator.last_name}
@@ -141,7 +159,7 @@ export function DailyOperationsList({
                           "-"
                         )}
                       </TableCell>
-                      <TableCell className="text-sm hidden xl:table-cell">
+                      <TableCell className="text-xs sm:text-sm hidden xl:table-cell">
                         {surgery.updated_by && surgery.updated_by !== surgery.created_by ? (
                           <div className="text-blue-600">Güncellendi</div>
                         ) : (

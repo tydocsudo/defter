@@ -4,7 +4,7 @@ export interface Profile {
   first_name: string
   last_name: string
   is_admin: boolean
-  password?: string // Added password field
+  password?: string
   created_at: string
   updated_at: string
 }
@@ -31,15 +31,13 @@ export interface Surgery {
   indication: string
   procedure_name: string
   responsible_doctor_id: string | null
-  senior_resident_id: string | null
-  junior_resident_id: string | null
-  senior_resident_custom: string | null
-  junior_resident_custom: string | null
   phone_number_1: string
   phone_number_2: string
   salon_id: string | null
   surgery_date: string | null
   is_waiting_list: boolean
+  is_approved: boolean
+  approved_by: string | null // Added approved_by field
   created_by: string | null
   updated_by: string | null
   created_at: string
@@ -49,10 +47,10 @@ export interface Surgery {
 
 export interface SurgeryWithDetails extends Surgery {
   responsible_doctor?: Doctor
-  senior_resident?: Doctor
-  junior_resident?: Doctor
   salon?: Salon
   creator?: Profile
+  approver?: Profile // Added approver field
+  surgery_notes?: SurgeryNote[]
 }
 
 export interface SurgeryNote {

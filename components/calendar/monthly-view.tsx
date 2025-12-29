@@ -5,12 +5,12 @@ import type { Salon, Doctor, SurgeryWithDetails, DayNote, DailyAssignedDoctor } 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react"
 import { MonthlyCalendar } from "./monthly-calendar"
-import { DayDetailsPanel } from "./day-details-panel"
-import { DailyOperationsList } from "./daily-operations-list"
 import { WaitingListSidebar } from "./waiting-list-sidebar"
-import { formatDateTurkish } from "@/lib/utils"
+import { FlipbookOperationsList } from "@/components/flipbook/flipbook-operations-list"
+import { format } from "date-fns"
+import { tr } from "date-fns/locale"
 
 interface MonthlyViewProps {
   salons: Salon[]
@@ -26,7 +26,7 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
   const [dayNotes, setDayNotes] = useState<DayNote[]>([])
   const [assignedDoctors, setAssignedDoctors] = useState<DailyAssignedDoctor[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [showDayNotes, setShowDayNotes] = useState(false)
+  const [showOperationsList, setShowOperationsList] = useState(false)
 
   const currentYear = currentDate.getFullYear()
   const currentMonth = currentDate.getMonth()
@@ -83,6 +83,27 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
     }
   }, [fetchData])
 
+  useEffect(() => {
+    if (selectedDate && selectedSalon) {
+      const pdfButton = document.getElementById("export-pdf-button") as HTMLButtonElement
+      const excelButton = document.getElementById("export-excel-button") as HTMLButtonElement
+
+      if (pdfButton) {
+        pdfButton.disabled = false
+        pdfButton.onclick = () => {
+          window.open(`/api/export/pdf?salon_id=${selectedSalon}&date=${selectedDate}`, "_blank")
+        }
+      }
+
+      if (excelButton) {
+        excelButton.disabled = false
+        excelButton.onclick = () => {
+          window.open(`/api/export/excel?salon_id=${selectedSalon}&date=${selectedDate}`, "_blank")
+        }
+      }
+    }
+  }, [selectedDate, selectedSalon])
+
   const handlePreviousMonth = () => {
     setCurrentDate(new Date(currentYear, currentMonth - 1, 1))
     setSelectedDate(null)
@@ -95,6 +116,7 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
 
   const handleDateSelect = (date: string) => {
     setSelectedDate(date)
+    setShowOperationsList(true)
   }
 
   const monthNames = [
@@ -183,29 +205,24 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
             </Card>
 
             {selectedDate && (
-              <Card className="mt-3 sm:mt-4">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-xs sm:text-sm md:text-base">
-                      Gün Notları - {formatDateTurkish(selectedDate)}
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowDayNotes(!showDayNotes)}
-                      className="text-xs sm:text-sm"
-                    >
-                      {showDayNotes ? "Gizle" : "Göster"}
-                    </Button>
-                  </div>
+              <Card className="mt-4">
+                <CardHeader className="pb-3">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowOperationsList(!showOperationsList)}
+                    className="w-full flex items-center justify-between hover:bg-slate-50"
+                  >
+                    <div className="text-base">
+                      Günlük Ameliyat Listesi - {format(new Date(selectedDate), "d MMMM yyyy EEEE", { locale: tr })}
+                    </div>
+                    {showOperationsList ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
                 </CardHeader>
-                {showDayNotes && (
+                {showOperationsList && (
                   <CardContent>
-                    <DayDetailsPanel
-                      selectedDate={selectedDate}
-                      salonId={selectedSalon}
+                    <FlipbookOperationsList
+                      selectedDate={new Date(selectedDate)}
                       surgeries={surgeries}
-                      dayNotes={dayNotes}
                       doctors={doctors}
                       salons={salons}
                       onDataChange={fetchData}
@@ -275,22 +292,24 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
           </Card>
 
           {selectedDate && (
-            <Card className="mt-3">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xs sm:text-sm">Gün Notları - {formatDateTurkish(selectedDate)}</CardTitle>
-                  <Button variant="ghost" size="sm" onClick={() => setShowDayNotes(!showDayNotes)} className="text-xs">
-                    {showDayNotes ? "Gizle" : "Göster"}
-                  </Button>
-                </div>
+            <Card className="mt-4">
+              <CardHeader className="pb-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowOperationsList(!showOperationsList)}
+                  className="w-full flex items-center justify-between hover:bg-slate-50 p-2"
+                >
+                  <div className="text-sm font-semibold text-left">
+                    Günlük Liste - {format(new Date(selectedDate), "d MMM", { locale: tr })}
+                  </div>
+                  {showOperationsList ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
               </CardHeader>
-              {showDayNotes && (
-                <CardContent>
-                  <DayDetailsPanel
-                    selectedDate={selectedDate}
-                    salonId={selectedSalon}
+              {showOperationsList && (
+                <CardContent className="p-2">
+                  <FlipbookOperationsList
+                    selectedDate={new Date(selectedDate)}
                     surgeries={surgeries}
-                    dayNotes={dayNotes}
                     doctors={doctors}
                     salons={salons}
                     onDataChange={fetchData}
@@ -305,19 +324,6 @@ export function MonthlyView({ salons, doctors, isAdmin }: MonthlyViewProps) {
           </div>
         </div>
       </div>
-
-      {selectedDate && (
-        <DailyOperationsList
-          date={selectedDate}
-          salonId={selectedSalon}
-          salon={salons.find((s) => s.id === selectedSalon)}
-          surgeries={surgeries.filter((s) => s.surgery_date === selectedDate)}
-          dayNotes={dayNotes.filter((n) => n.note_date === selectedDate)}
-          doctors={doctors}
-          salons={salons}
-          onDataChange={fetchData}
-        />
-      )}
     </div>
   )
 }

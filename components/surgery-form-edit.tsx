@@ -27,8 +27,6 @@ export function SurgeryFormEdit({ surgery, doctors, open, onOpenChange, onSucces
     indication: surgery.indication,
     procedure_name: surgery.procedure_name,
     responsible_doctor_id: surgery.responsible_doctor_id || "",
-    senior_resident_custom: surgery.senior_resident_custom || "",
-    junior_resident_custom: surgery.junior_resident_custom || "",
     phone_number_1: surgery.phone_number_1,
     phone_number_2: surgery.phone_number_2,
   })
@@ -119,27 +117,6 @@ export function SurgeryFormEdit({ surgery, doctors, open, onOpenChange, onSucces
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="senior_resident">Salon Kıdemlisi</Label>
-              <Input
-                id="senior_resident"
-                placeholder="Örn: Dr. Ahmet Yılmaz"
-                value={formData.senior_resident_custom}
-                onChange={(e) => setFormData({ ...formData, senior_resident_custom: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="junior_resident">Salon Çömezi</Label>
-              <Input
-                id="junior_resident"
-                placeholder="Örn: Dr. Ayşe Kaya"
-                value={formData.junior_resident_custom}
-                onChange={(e) => setFormData({ ...formData, junior_resident_custom: e.target.value })}
-              />
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

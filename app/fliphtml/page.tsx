@@ -21,8 +21,8 @@ export default async function FliphtmlPage() {
       *,
       salon:salons(id, name),
       responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name),
-      senior_resident:doctors!surgeries_senior_resident_id_fkey(id, name),
-      junior_resident:doctors!surgeries_junior_resident_id_fkey(id, name),
+      creator:profiles!surgeries_created_by_fkey(id, username, first_name, last_name),
+      approver:profiles!surgeries_approved_by_fkey(id, username, first_name, last_name),
       surgery_notes(id, note, created_at, created_by)
     `)
     .eq("is_waiting_list", false)

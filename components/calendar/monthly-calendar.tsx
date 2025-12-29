@@ -175,7 +175,7 @@ export function MonthlyCalendar({
         <div className="grid grid-cols-5 gap-2 sm:gap-2.5 md:gap-3">
           {days.map((day, index) => {
             if (day === null) {
-              return <div key={`empty-${index}`} className="min-h-[100px] sm:min-h-[140px] lg:min-h-[180px]" />
+              return <div key={`empty-${index}`} className="min-h-[160px] sm:min-h-[200px] lg:min-h-[240px]" />
             }
 
             const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
@@ -188,7 +188,6 @@ export function MonthlyCalendar({
 
             const date = new Date(year, month, day)
             const dayOfWeek = date.getDay()
-            // Convert JavaScript day (0=Sunday, 1=Monday...) to our array index (0=Monday, 1=Tuesday...)
             const dayNameIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1
             const dayName = dayNames[dayNameIndex]
 
@@ -196,7 +195,7 @@ export function MonthlyCalendar({
               <div
                 key={day}
                 className={cn(
-                  "rounded-lg p-1.5 sm:p-2 md:p-2.5 cursor-pointer transition-all hover:shadow-lg relative min-h-[100px] sm:min-h-[140px] lg:min-h-[180px] flex flex-col border-2 md:px-2.5 md:py-2.5 mx-1 my-1",
+                  "rounded-lg p-1 sm:p-1.5 md:p-2 cursor-pointer transition-all hover:shadow-lg relative min-h-[160px] sm:min-h-[200px] lg:min-h-[240px] flex flex-col border-2 gap-0 my-1 md:px-2 mx-1",
                   isSelected && "ring-2 ring-blue-500 bg-blue-50",
                   isToday && !isSelected && "bg-yellow-50 border-yellow-400",
                   !isSelected && !isToday && "bg-white hover:bg-gray-50",
@@ -208,27 +207,27 @@ export function MonthlyCalendar({
                 onDrop={(e) => handleDrop(e, day)}
               >
                 <div className="flex flex-col h-full">
-                  <div className="flex items-start justify-between mb-1 sm:mb-2 flex-shrink-0">
-                    <div className="flex flex-col gap-0.5 sm:gap-1 flex-1 min-w-0">
-                      <div className="flex flex-col gap-0.5">
+                  <div className="flex items-start justify-between mb-0.5 sm:mb-1 flex-shrink-0">
+                    <div className="flex flex-col gap-0 sm:gap-0.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
                         <span
                           className={cn(
-                            "text-xs sm:text-sm lg:text-base font-bold flex-shrink-0 leading-tight",
+                            "text-[10px] sm:text-xs lg:text-sm font-bold flex-shrink-0 leading-tight",
                             isToday && "text-yellow-700",
                             !isToday && "text-gray-800",
                           )}
                         >
                           {day} - {dayName}
                         </span>
+                        {hasNotes && (
+                          <div
+                            className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full flex-shrink-0"
+                            title="Not var"
+                          />
+                        )}
                       </div>
-                      {hasNotes && (
-                        <div
-                          className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full flex-shrink-0"
-                          title="Not var"
-                        />
-                      )}
                       {assignedDoctor && (
-                        <div className="text-[10px] sm:text-xs lg:text-sm text-blue-700 font-bold leading-tight break-words">
+                        <div className="text-[9px] sm:text-[10px] lg:text-xs text-blue-700 font-bold leading-tight break-words">
                           {assignedDoctor.doctor?.name}
                         </div>
                       )}
@@ -237,13 +236,13 @@ export function MonthlyCalendar({
                       onClick={(e) => toggleCellExpansion(dateStr, e)}
                       className="text-gray-400 hover:text-gray-700 flex-shrink-0"
                     >
-                      <Maximize2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <Maximize2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                     </button>
                   </div>
 
                   {!assignedDoctor && isAdmin && (
                     <Select onValueChange={(value) => handleDoctorAssign(day, value)} disabled={isAssigning}>
-                      <SelectTrigger className="h-6 sm:h-8 text-[10px] sm:text-xs mb-1 sm:mb-2 border-dashed">
+                      <SelectTrigger className="h-5 sm:h-6 text-[9px] sm:text-[10px] mb-0.5 sm:mb-1 border-dashed">
                         <SelectValue placeholder="Hoca" />
                       </SelectTrigger>
                       <SelectContent>
@@ -256,27 +255,28 @@ export function MonthlyCalendar({
                     </Select>
                   )}
 
-                  <div className="flex-1 min-h-0 overflow-hidden sm:space-y-0 my-0 border-0">
+                  <div className="flex-1 min-h-0 space-y-0.5 sm:space-y-1">
                     {daySurgeries.length > 0 && (
-                      <Badge variant="secondary" className="text-[9px] sm:text-xs font-semibold mb-0.5 sm:mb-1">
+                      <Badge variant="secondary" className="text-[8px] sm:text-[9px] font-semibold mb-0.5 py-0">
                         {daySurgeries.length} vaka
                       </Badge>
                     )}
-                    {daySurgeries.slice(0, 2).map((surgery, idx) => (
+                    {daySurgeries.slice(0, 4).map((surgery, idx) => (
                       <div
                         key={surgery.id}
                         className={cn(
-                          "text-[9px] sm:text-[10px] lg:text-xs font-bold text-gray-900 leading-tight break-words px-1 sm:px-1.5 py-0.5 sm:py-1 rounded border overflow-hidden",
+                          "text-[8px] sm:text-[9px] lg:text-[10px] font-medium text-gray-900 leading-tight px-0.5 sm:px-1 py-0.5 rounded border",
                           surgeryColors[idx % surgeryColors.length],
+                          "md:line-clamp-1", // Only truncate on desktop
                         )}
                         title={surgery.procedure_name}
                       >
-                        <div className="line-clamp-2">• {surgery.procedure_name}</div>
+                        <div className="break-words">• {surgery.procedure_name}</div>
                       </div>
                     ))}
-                    {daySurgeries.length > 2 && (
-                      <div className="text-[9px] sm:text-xs text-gray-600 font-medium px-1 sm:px-1.5">
-                        +{daySurgeries.length - 2} daha...
+                    {daySurgeries.length > 4 && (
+                      <div className="text-[8px] sm:text-[9px] text-gray-600 font-medium px-0.5 sm:px-1">
+                        +{daySurgeries.length - 4} daha...
                       </div>
                     )}
                   </div>

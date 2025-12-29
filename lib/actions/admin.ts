@@ -17,6 +17,7 @@ export async function createUser(formData: {
 
   const supabase = createAdminClient()
 
+  // Check for existing username in profiles table
   const { data: existingProfile } = await supabase
     .from("profiles")
     .select("username")
@@ -27,27 +28,39 @@ export async function createUser(formData: {
     throw new Error("Bu kullanıcı adı zaten kullanılıyor")
   }
 
-  // Create profile directly with password
-  const { data, error } = await supabase
-    .from("profiles")
-    .insert({
-      id: crypto.randomUUID(),
+  // Create user in Supabase Auth first (this will trigger profile creation via trigger)
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email: `${formData.username}@internal.app`, // Use username as email
+    password: formData.password,
+    email_confirm: true, // Auto-confirm email
+    user_metadata: {
       username: formData.username,
-      password: formData.password,
       first_name: formData.first_name,
       last_name: formData.last_name,
       is_admin: formData.is_admin,
-    })
-    .select()
-    .maybeSingle()
+    },
+  })
 
-  if (error) {
-    console.error("[v0] Error creating user:", error)
-    throw new Error("Kullanıcı oluşturulurken hata oluştu: " + error.message)
+  if (authError || !authData.user) {
+    console.error("[v0] Error creating auth user:", authError)
+    throw new Error("Kullanıcı oluşturulurken hata oluştu: " + authError?.message)
+  }
+
+  // Update the profile with password (since trigger creates it without password)
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({
+      password: formData.password,
+    })
+    .eq("id", authData.user.id)
+
+  if (updateError) {
+    console.error("[v0] Error updating profile with password:", updateError)
+    // Don't throw here - user is created, just password wasn't saved to profiles
   }
 
   revalidatePath("/admin")
-  return { success: true, data }
+  return { success: true, data: authData.user }
 }
 
 export async function updateUserPassword(userId: string, newPassword: string) {
@@ -187,6 +200,28 @@ export async function getActivityLogs(limit = 50) {
   if (error) {
     console.error("[v0] Error fetching activity logs:", error)
     return []
+  }
+
+  return data || []
+}
+
+// Surgery Management
+export async function getSurgeryHistory(surgeryId: string) {
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from("activity_logs")
+    .select(`
+      *,
+      user:profiles!activity_logs_user_id_fkey(id, username, first_name, last_name)
+    `)
+    .eq("details->>surgery_id", surgeryId)
+    .order("created_at", { ascending: false })
+    .limit(50)
+
+  if (error) {
+    console.error("[v0] Error fetching surgery history:", error)
+    throw new Error("Geçmiş yüklenirken hata oluştu")
   }
 
   return data || []
