@@ -3,7 +3,11 @@ import { getCurrentUser } from "@/lib/auth"
 import { createServerClient } from "@/lib/supabase/server"
 import { FlipbookView } from "@/components/flipbook/flipbook-view"
 
-export default async function FliphtmlPage() {
+export default async function FliphtmlPage({
+  searchParams,
+}: {
+  searchParams: { date?: string }
+}) {
   const user = await getCurrentUser()
   if (!user) {
     redirect("/login")
@@ -38,6 +42,7 @@ export default async function FliphtmlPage() {
         surgeries={surgeries || []}
         dayNotes={dayNotes || []}
         doctors={doctors || []}
+        initialDate={searchParams.date}
       />
     </main>
   )

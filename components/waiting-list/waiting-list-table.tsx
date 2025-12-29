@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import type { SurgeryWithDetails, Doctor, Salon } from "@/lib/types"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -17,10 +18,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { assignFromWaitingList, deleteSurgery } from "@/lib/actions/surgeries"
-import { Calendar, MoreHorizontal, Trash2, MessageSquare } from "lucide-react"
+import { Calendar, MoreHorizontal, Trash2, MessageSquare, Wand2, AlertCircle } from "lucide-react"
 import { SurgeryForm } from "@/components/surgery-form"
 import { Textarea } from "@/components/ui/textarea"
 import { createSurgeryNote } from "@/lib/actions/notes"
+import { findAvailableDates } from "@/lib/actions/auto-scheduler"
+import { AvailableSlotsDialog } from "@/components/waiting-list/available-slots-dialog"
+import { Badge } from "@/components/ui/badge"
 
 interface WaitingListTableProps {
   surgeries: SurgeryWithDetails[]
@@ -38,6 +42,15 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
   const [selectedSurgeryForNote, setSelectedSurgeryForNote] = useState<string | null>(null)
   const [surgeryNote, setSurgeryNote] = useState("")
   const [isAddingNote, setIsAddingNote] = useState(false)
+  const [autoFindDialogOpen, setAutoFindDialogOpen] = useState(false)
+  const [selectedPatientForAutoFind, setSelectedPatientForAutoFind] = useState<string | null>(null)
+  const [autoFindSalonId, setAutoFindSalonId] = useState("")
+  const [autoFindDoctorId, setAutoFindDoctorId] = useState("")
+  const [availableSlots, setAvailableSlots] = useState<any[]>([])
+  const [isSearchingSlots, setIsSearchingSlots] = useState(false)
+  const [autoFindStep, setAutoFindStep] = useState<"patient" | "salon" | "doctor" | "results">("patient")
+
+  const router = useRouter()
 
   const handleAssign = async () => {
     if (!selectedSurgery || !assignSalonId || !assignDate) return
@@ -48,7 +61,8 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
       setSelectedSurgery(null)
       setAssignSalonId("")
       setAssignDate("")
-      window.location.reload()
+
+      window.location.href = `/fliphtml?date=${assignDate}`
     } catch (error: any) {
       alert(error.message || "Atama yapılırken bir hata oluştu")
     } finally {
@@ -86,81 +100,152 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
     }
   }
 
+  const handleAutoFind = async () => {
+    if (!selectedPatientForAutoFind || !autoFindSalonId || !autoFindDoctorId) {
+      alert("Lütfen salon ve hoca seçin")
+      return
+    }
+
+    setIsSearchingSlots(true)
+    try {
+      const result = await findAvailableDates(autoFindSalonId, autoFindDoctorId, selectedPatientForAutoFind)
+
+      if (result.success && result.slots) {
+        setAvailableSlots(result.slots)
+        setAutoFindStep("results")
+      } else {
+        alert(result.error || "Uygun tarih bulunamadı")
+        setAutoFindDialogOpen(false)
+        setSelectedPatientForAutoFind(null)
+        setAutoFindStep("patient")
+      }
+    } catch (error: any) {
+      alert(error.message || "Tarihler aranırken hata oluştu")
+    } finally {
+      setIsSearchingSlots(false)
+    }
+  }
+
+  const handleSelectSlot = async (date: string) => {
+    if (!selectedPatientForAutoFind || !autoFindSalonId || !autoFindDoctorId) return
+
+    setIsSearchingSlots(true)
+    try {
+      await assignFromWaitingList(selectedPatientForAutoFind, autoFindSalonId, date, autoFindDoctorId)
+      setAutoFindDialogOpen(false)
+      setSelectedPatientForAutoFind(null)
+      setAutoFindSalonId("")
+      setAutoFindDoctorId("")
+      setAvailableSlots([])
+      setAutoFindStep("patient")
+
+      window.location.href = `/fliphtml?date=${date}`
+    } catch (error: any) {
+      alert(error.message || "Atama yapılırken bir hata oluştu")
+    } finally {
+      setIsSearchingSlots(false)
+    }
+  }
+
   return (
     <>
-      <div className="mb-4">
-        <Button onClick={() => setIsAddFormOpen(true)}>Bekleme Listesine Hasta Ekle</Button>
+      <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+        <Button onClick={() => setIsAddFormOpen(true)} className="w-full sm:w-auto">
+          Bekleme Listesine Hasta Ekle
+        </Button>
+
+        <Button
+          variant="destructive"
+          onClick={() => {
+            setAutoFindDialogOpen(true)
+            setAutoFindStep("patient")
+          }}
+          disabled={surgeries.length === 0}
+          className="gap-2 w-full sm:w-auto flex-wrap justify-center"
+        >
+          <Wand2 className="h-4 w-4" />
+          Otomatik Bul
+          <Badge
+            variant="secondary"
+            className="ml-1 bg-white text-red-600 hover:bg-white py-0 px-2 text-[10px] sm:text-xs"
+          >
+            <AlertCircle className="h-3 w-3 mr-1" />
+            DENEYSEL
+          </Badge>
+        </Button>
       </div>
 
       {surgeries.length === 0 ? (
         <div className="text-center py-12 text-gray-500">Bekleme listesinde hasta yok</div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Hasta Adı</TableHead>
-              <TableHead>Protokol No</TableHead>
-              <TableHead>Yapılacak İşlem</TableHead>
-              <TableHead>Sorumlu Hoca</TableHead>
-              <TableHead>Telefon</TableHead>
-              <TableHead>Ekleyen</TableHead>
-              <TableHead>Eklenme Tarihi</TableHead>
-              <TableHead className="text-right">İşlemler</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {surgeries.map((surgery) => (
-              <TableRow key={surgery.id}>
-                <TableCell className="font-medium">{surgery.patient_name}</TableCell>
-                <TableCell>{surgery.protocol_number}</TableCell>
-                <TableCell className="max-w-xs">{surgery.procedure_name}</TableCell>
-                <TableCell>{surgery.responsible_doctor?.name || "-"}</TableCell>
-                <TableCell className="text-sm">
-                  <div>{surgery.phone_number_1}</div>
-                  <div className="text-gray-500">{surgery.phone_number_2}</div>
-                </TableCell>
-                <TableCell className="text-sm">
-                  {surgery.creator ? (
-                    <div>
-                      {surgery.creator.first_name} {surgery.creator.last_name}
-                    </div>
-                  ) : (
-                    "-"
-                  )}
-                </TableCell>
-                <TableCell className="text-sm">{new Date(surgery.created_at).toLocaleDateString("tr-TR")}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setSelectedSurgery(surgery.id)}>
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Takvime Ata
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedSurgeryForNote(surgery.id)
-                          setNoteDialogOpen(true)
-                        }}
-                      >
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Not Ekle
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDelete(surgery.id)} className="text-red-600">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Sil
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Hasta Adı</TableHead>
+                <TableHead>Protokol No</TableHead>
+                <TableHead>Yapılacak İşlem</TableHead>
+                <TableHead>Sorumlu Hoca</TableHead>
+                <TableHead>Telefon</TableHead>
+                <TableHead>Ekleyen</TableHead>
+                <TableHead>Eklenme Tarihi</TableHead>
+                <TableHead className="text-right">İşlemler</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {surgeries.map((surgery) => (
+                <TableRow key={surgery.id}>
+                  <TableCell className="font-medium">{surgery.patient_name}</TableCell>
+                  <TableCell>{surgery.protocol_number}</TableCell>
+                  <TableCell className="max-w-xs">{surgery.procedure_name}</TableCell>
+                  <TableCell>{surgery.responsible_doctor?.name || "-"}</TableCell>
+                  <TableCell className="text-sm">
+                    <div>{surgery.phone_number_1}</div>
+                    <div className="text-gray-500">{surgery.phone_number_2}</div>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {surgery.creator ? (
+                      <div>
+                        {surgery.creator.first_name} {surgery.creator.last_name}
+                      </div>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">{new Date(surgery.created_at).toLocaleDateString("tr-TR")}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setSelectedSurgery(surgery.id)}>
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Takvime Ata
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedSurgeryForNote(surgery.id)
+                            setNoteDialogOpen(true)
+                          }}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Not Ekle
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDelete(surgery.id)} className="text-red-600">
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Sil
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
       <Dialog open={!!selectedSurgery} onOpenChange={() => setSelectedSurgery(null)}>
@@ -229,6 +314,174 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={autoFindDialogOpen}
+        onOpenChange={(open) => {
+          setAutoFindDialogOpen(open)
+          if (!open) {
+            setSelectedPatientForAutoFind(null)
+            setAutoFindSalonId("")
+            setAutoFindDoctorId("")
+            setAvailableSlots([])
+            setAutoFindStep("patient")
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Otomatik Tarih Bul -{" "}
+              {autoFindStep === "patient"
+                ? "Hasta Seçimi"
+                : autoFindStep === "salon"
+                  ? "Salon Seçimi"
+                  : autoFindStep === "doctor"
+                    ? "Hoca Seçimi"
+                    : "Uygun Tarihler"}
+            </DialogTitle>
+            <DialogDescription>
+              {autoFindStep === "patient" && "Otomatik tarih bulunacak hastayı seçin"}
+              {autoFindStep === "salon" && "Hastanız için ameliyat yapılacak salonu seçin"}
+              {autoFindStep === "doctor" && "Ameliyatı yapacak hocayı seçin"}
+              {autoFindStep === "results" && "Uygun tarihleri görüntüleyin ve seçin"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {autoFindStep === "patient" && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="auto_patient">Hasta</Label>
+                <Select value={selectedPatientForAutoFind || ""} onValueChange={setSelectedPatientForAutoFind}>
+                  <SelectTrigger id="auto_patient">
+                    <SelectValue placeholder="Hasta seçin">
+                      {selectedPatientForAutoFind &&
+                        surgeries.find((s) => s.id === selectedPatientForAutoFind)?.patient_name}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {surgeries.map((surgery) => (
+                      <SelectItem key={surgery.id} value={surgery.id}>
+                        <div className="flex flex-col gap-0.5 py-1">
+                          <span className="font-medium text-sm">{surgery.patient_name}</span>
+                          <span className="text-xs text-gray-600">{surgery.procedure_name}</span>
+                          <span className="text-xs text-gray-400">{surgery.protocol_number}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedPatientForAutoFind && (
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <h4 className="font-semibold mb-2">Seçili Hasta Bilgileri</h4>
+                  {(() => {
+                    const selectedPatient = surgeries.find((s) => s.id === selectedPatientForAutoFind)
+                    if (!selectedPatient) return null
+                    return (
+                      <div className="space-y-1 text-sm">
+                        <div>
+                          <span className="font-medium">Hasta:</span> {selectedPatient.patient_name}
+                        </div>
+                        <div>
+                          <span className="font-medium">Protokol No:</span> {selectedPatient.protocol_number}
+                        </div>
+                        <div>
+                          <span className="font-medium">Yapılacak İşlem:</span> {selectedPatient.procedure_name}
+                        </div>
+                        {selectedPatient.responsible_doctor && (
+                          <div>
+                            <span className="font-medium">Sorumlu Hoca:</span> {selectedPatient.responsible_doctor.name}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {autoFindStep === "salon" && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="auto_salon">Salon</Label>
+                <Select value={autoFindSalonId} onValueChange={setAutoFindSalonId}>
+                  <SelectTrigger id="auto_salon">
+                    <SelectValue placeholder="Salon seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salons.map((salon) => (
+                      <SelectItem key={salon.id} value={salon.id}>
+                        {salon.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {autoFindStep === "doctor" && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="auto_doctor">Hoca</Label>
+                <Select value={autoFindDoctorId} onValueChange={setAutoFindDoctorId}>
+                  <SelectTrigger id="auto_doctor">
+                    <SelectValue placeholder="Hoca seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {doctors.map((doctor) => (
+                      <SelectItem key={doctor.id} value={doctor.id}>
+                        {doctor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {autoFindStep === "results" && (
+            <AvailableSlotsDialog slots={availableSlots} onSelectSlot={handleSelectSlot} isLoading={isSearchingSlots} />
+          )}
+
+          <DialogFooter>
+            {autoFindStep === "patient" && (
+              <>
+                <Button variant="outline" onClick={() => setAutoFindDialogOpen(false)}>
+                  İptal
+                </Button>
+                <Button onClick={() => setAutoFindStep("salon")} disabled={!selectedPatientForAutoFind}>
+                  İleri
+                </Button>
+              </>
+            )}
+
+            {autoFindStep === "salon" && (
+              <>
+                <Button variant="outline" onClick={() => setAutoFindStep("patient")}>
+                  Geri
+                </Button>
+                <Button onClick={() => setAutoFindStep("doctor")} disabled={!autoFindSalonId}>
+                  İleri
+                </Button>
+              </>
+            )}
+
+            {autoFindStep === "doctor" && (
+              <>
+                <Button variant="outline" onClick={() => setAutoFindStep("salon")}>
+                  Geri
+                </Button>
+                <Button onClick={handleAutoFind} disabled={isSearchingSlots || !autoFindDoctorId}>
+                  {isSearchingSlots ? "Aranıyor..." : "Uygun Tarihleri Bul"}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

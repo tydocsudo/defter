@@ -198,25 +198,31 @@ export async function moveToWaitingList(surgeryId: string) {
   )
 }
 
-export async function assignFromWaitingList(surgeryId: string, salonId: string, surgeryDate: string) {
+export async function assignFromWaitingList(
+  surgeryId: string,
+  salonId: string,
+  surgeryDate: string,
+  doctorId?: string,
+) {
   const user = await getCurrentUser()
   if (!user) throw new Error("Unauthorized")
 
   const supabase = createAdminClient()
 
-  console.log("[v0] Assigning surgery from waiting list:", { surgeryId, salonId, surgeryDate })
+  console.log("[v0] Assigning surgery from waiting list:", { surgeryId, salonId, surgeryDate, doctorId })
 
-  const { data, error } = await supabase
-    .from("surgeries")
-    .update({
-      is_waiting_list: false,
-      salon_id: salonId,
-      surgery_date: surgeryDate,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", surgeryId)
-    .select()
-    .single()
+  const updateData: any = {
+    is_waiting_list: false,
+    salon_id: salonId,
+    surgery_date: surgeryDate,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (doctorId) {
+    updateData.responsible_doctor_id = doctorId
+  }
+
+  const { data, error } = await supabase.from("surgeries").update(updateData).eq("id", surgeryId).select().single()
 
   if (error) {
     console.error("[v0] Error assigning surgery:", error)
@@ -230,6 +236,7 @@ export async function assignFromWaitingList(surgeryId: string, salonId: string, 
     patient_name: data.patient_name,
     salon_id: salonId,
     surgery_date: surgeryDate,
+    doctor_id: doctorId,
   })
 
   revalidatePath("/")
@@ -302,4 +309,62 @@ export async function unapproveSurgery(surgeryId: string) {
   revalidatePath("/waiting-list")
   revalidatePath("/fliphtml")
   return { success: true, data }
+}
+
+export async function createSurgeryNote(surgeryId: string, note: string) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from("surgery_notes")
+    .insert({
+      surgery_id: surgeryId,
+      note,
+      created_by: user.id,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error("[v0] Error creating surgery note:", error)
+    throw new Error(error.message)
+  }
+
+  await logActivity("Not Eklendi", {
+    surgery_id: surgeryId,
+    note: note.substring(0, 100),
+  })
+
+  revalidatePath("/")
+  revalidatePath("/waiting-list")
+  revalidatePath("/fliphtml")
+  return { success: true, data }
+}
+
+export async function deleteSurgeryNote(noteId: string) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+
+  const { data: note } = await supabase.from("surgery_notes").select("surgery_id").eq("id", noteId).single()
+
+  const { error } = await supabase.from("surgery_notes").delete().eq("id", noteId)
+
+  if (error) {
+    console.error("[v0] Error deleting surgery note:", error)
+    throw new Error(error.message)
+  }
+
+  await logActivity("Not Silindi", {
+    note_id: noteId,
+    surgery_id: note?.surgery_id,
+  })
+
+  revalidatePath("/")
+  revalidatePath("/waiting-list")
+  revalidatePath("/fliphtml")
+  return { success: true }
 }

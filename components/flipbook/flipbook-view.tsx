@@ -11,6 +11,8 @@ import {
   startOfMonth,
   endOfMonth,
   addDays,
+  parseISO,
+  isValid,
 } from "date-fns" // Import subMonths and addMonths
 import { useState, useEffect, useCallback, useRef } from "react"
 import { format } from "date-fns"
@@ -30,19 +32,31 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  MessageSquare,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import type { Salon, SurgeryWithDetails, DayNote, SurgeryNote, Doctor } from "@/lib/types"
 import Link from "next/link"
 import { moveToWaitingList, assignFromWaitingList } from "@/lib/actions/surgeries"
-import { createDayNote, deleteDayNote } from "@/lib/actions/notes"
+import { createDayNote, deleteDayNote, createSurgeryNote, deleteSurgeryNote } from "@/lib/actions/notes"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import { WaitingListSidebar } from "@/components/calendar/waiting-list-sidebar"
 import { approveSurgery, unapproveSurgery } from "@/lib/actions/surgeries"
 import { FlipbookOperationsList } from "./flipbook-operations-list"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface SurgeryWithNotes extends SurgeryWithDetails {
   surgery_notes?: SurgeryNote[]
@@ -53,9 +67,10 @@ interface FlipbookViewProps {
   surgeries: SurgeryWithNotes[]
   dayNotes: DayNote[]
   doctors: Doctor[]
+  initialDate?: string // Added initialDate prop to scroll to specific date
 }
 
-export function FlipbookView({ salons, surgeries, dayNotes, doctors }: FlipbookViewProps) {
+export function FlipbookView({ salons, surgeries, dayNotes, doctors, initialDate }: FlipbookViewProps) {
   const [selectedSalonId, setSelectedSalonId] = useState<string>("")
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [isFlipping, setIsFlipping] = useState(false)
@@ -69,7 +84,14 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors }: FlipbookV
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [selectedDayForList, setSelectedDayForList] = useState<Date | null>(new Date()) // Track selected day for operations list
   const [showOperationsList, setShowOperationsList] = useState(false) // Toggle visibility
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false)
+  const [selectedSurgeryForNote, setSelectedSurgeryForNote] = useState<string | null>(null)
+  const [surgeryNote, setSurgeryNote] = useState("")
+  const [isAddingNote, setIsAddingNote] = useState(false)
+  const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null)
+  const [isDeletingNote, setIsDeletingNote] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
+  const hasScrolledToInitialDate = useRef(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -77,6 +99,25 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors }: FlipbookV
       setSelectedSalonId(salons[0].id)
     }
   }, [salons, selectedSalonId])
+
+  useEffect(() => {
+    if (initialDate && !hasScrolledToInitialDate.current) {
+      try {
+        const targetDate = parseISO(initialDate)
+        if (isValid(targetDate)) {
+          const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
+          setCurrentWeekStart(weekStart)
+          hasScrolledToInitialDate.current = true
+          console.log("[v0] Scrolled to week containing:", initialDate)
+
+          // Clear the date parameter from URL after scrolling
+          router.replace("/fliphtml", { scroll: false })
+        }
+      } catch (error) {
+        console.error("[v0] Error parsing initialDate:", error)
+      }
+    }
+  }, [initialDate, router])
 
   const getWeekDays = (start: Date) => {
     return eachDayOfInterval({ start, end: addDays(start, 4) }) // Mon-Fri
@@ -248,6 +289,38 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors }: FlipbookV
 
   const handleDataChange = () => {
     router.refresh()
+  }
+
+  const handleAddNote = async () => {
+    if (!selectedSurgeryForNote || !surgeryNote.trim()) return
+
+    setIsAddingNote(true)
+    try {
+      await createSurgeryNote(selectedSurgeryForNote, surgeryNote)
+      setSurgeryNote("")
+      setSelectedSurgeryForNote(null)
+      setNoteDialogOpen(false)
+      window.location.reload()
+    } catch (error: any) {
+      alert(error.message || "Not eklenirken bir hata oluştu")
+    } finally {
+      setIsAddingNote(false)
+    }
+  }
+
+  const handleDeleteNote = async () => {
+    if (!deleteNoteId) return
+
+    setIsDeletingNote(true)
+    try {
+      await deleteSurgeryNote(deleteNoteId)
+      setDeleteNoteId(null)
+      window.location.reload()
+    } catch (error: any) {
+      alert(error.message || "Not silinirken bir hata oluştu")
+    } finally {
+      setIsDeletingNote(false)
+    }
   }
 
   return (
@@ -483,14 +556,31 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors }: FlipbookV
                                 )}
 
                                 {surgery.surgery_notes && surgery.surgery_notes.length > 0 && (
-                                  <div className="mt-1 p-1 bg-blue-50 border border-blue-200 rounded">
-                                    <div className="flex items-center gap-1 mb-1">
-                                      <StickyNote className="h-2 w-2 text-blue-600" />
-                                      <span className="text-xs font-semibold text-blue-900">Notlar:</span>
-                                    </div>
+                                  <div className="mt-2 space-y-1">
                                     {surgery.surgery_notes.map((note) => (
-                                      <div key={note.id} className="text-xs text-blue-800">
-                                        • {note.note}
+                                      <div
+                                        key={note.id}
+                                        className="text-xs bg-yellow-50 border border-yellow-200 rounded p-2 flex items-start justify-between gap-2"
+                                      >
+                                        <div className="flex-1">
+                                          <p className="text-gray-700">{note.note}</p>
+                                          <p className="text-gray-400 text-[10px] mt-1">
+                                            {new Date(note.created_at).toLocaleDateString("tr-TR", {
+                                              day: "2-digit",
+                                              month: "2-digit",
+                                              year: "numeric",
+                                              hour: "2-digit",
+                                              minute: "2-digit",
+                                            })}
+                                          </p>
+                                        </div>
+                                        <button
+                                          onClick={() => setDeleteNoteId(note.id)}
+                                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
+                                          title="Notu sil"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
                                       </div>
                                     ))}
                                   </div>
@@ -520,6 +610,15 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors }: FlipbookV
                                         Onayla
                                       </>
                                     )}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setSelectedSurgeryForNote(surgery.id)
+                                      setNoteDialogOpen(true)
+                                    }}
+                                  >
+                                    <MessageSquare className="h-3 w-3 mr-2" />
+                                    Not Ekle
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handleMoveToWaitingList(surgery.id)}>
                                     <Calendar className="h-3 w-3 mr-2" />
@@ -579,6 +678,56 @@ export function FlipbookView({ salons, surgeries, dayNotes, doctors }: FlipbookV
           </div>
         </div>
       </div>
+
+      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hasta Notu Ekle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Textarea
+              placeholder="Not girin..."
+              value={surgeryNote}
+              onChange={(e) => setSurgeryNote(e.target.value)}
+              rows={4}
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setNoteDialogOpen(false)
+                  setSelectedSurgeryForNote(null)
+                  setSurgeryNote("")
+                }}
+              >
+                İptal
+              </Button>
+              <Button onClick={handleAddNote} disabled={isAddingNote || !surgeryNote.trim()}>
+                {isAddingNote ? "Ekleniyor..." : "Ekle"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteNoteId} onOpenChange={(open) => !open && setDeleteNoteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Notu silmek istediğinize emin misiniz?</AlertDialogTitle>
+            <AlertDialogDescription>Bu işlem geri alınamaz. Not kalıcı olarak silinecektir.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteNote}
+              disabled={isDeletingNote}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeletingNote ? "Siliniyor..." : "Evet, Sil"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

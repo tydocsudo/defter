@@ -121,22 +121,4 @@
   body {
     @apply bg-background text-foreground;
   }
-
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: oklch(0.8 0 0);
-    border-radius: 4px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.6 0 0);
-  }
 }
