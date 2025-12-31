@@ -47,19 +47,22 @@ import { useRouter } from "next/navigation"
 import { WaitingListSidebar } from "@/components/calendar/waiting-list-sidebar"
 import { approveSurgery, unapproveSurgery } from "@/lib/actions/surgeries"
 import { FlipbookOperationsList } from "./flipbook-operations-list"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { DoctorFilter } from "@/components/doctor-filter"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { PatientSearch } from "@/components/patient-search"
+import { SurgeryForm } from "@/components/surgery-form"
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
-import { SurgeryForm } from "@/components/surgery-form"
-import { PatientSearch } from "@/components/patient-search"
 
 interface SurgeryWithNotes extends SurgeryWithDetails {
   surgery_notes?: SurgeryNote[]
@@ -106,6 +109,13 @@ export function FlipbookView({
 
   const salons = initialSalons
   const doctors = initialDoctors
+
+  const [filterDoctorId, setFilterDoctorId] = useState<string | null>(null)
+  const [filterSalonIds, setFilterSalonIds] = useState<string[]>([])
+  const [showSalonDialog, setShowSalonDialog] = useState(false)
+  const [pendingDoctorId, setPendingDoctorId] = useState<string | null>(null)
+  const [filteredDates, setFilteredDates] = useState<Date[]>([])
+  const [filterMode, setFilterMode] = useState(false)
 
   useEffect(() => {
     if (salons.length > 0 && !selectedSalonId) {
@@ -159,11 +169,91 @@ export function FlipbookView({
     }
   }, [initialDate, router])
 
-  const getWeekDays = (start: Date) => {
-    return eachDayOfInterval({ start, end: addDays(start, 4) }) // Mon-Fri
+  const handleDoctorFilterChange = (doctorIds: string[]) => {
+    if (doctorIds.length === 0) {
+      // Clear filter
+      setFilterDoctorId(null)
+      setFilterSalonIds([])
+      setFilterMode(false)
+      setFilteredDates([])
+    } else {
+      // Single doctor selection - show salon dialog
+      setPendingDoctorId(doctorIds[0])
+      setShowSalonDialog(true)
+    }
   }
 
-  const weekDays = getWeekDays(currentWeekStart)
+  const handleSalonFilterConfirm = () => {
+    if (!pendingDoctorId || filterSalonIds.length === 0) return
+
+    setFilterDoctorId(pendingDoctorId)
+    setShowSalonDialog(false)
+    setFilterMode(true)
+
+    // Find all dates where this doctor is assigned in selected salons
+    // This will be handled in the useEffect below
+  }
+
+  useEffect(() => {
+    if (!filterMode || !filterDoctorId || filterSalonIds.length === 0) {
+      setFilteredDates([])
+      return
+    }
+
+    // Fetch assigned doctors for all selected salons to find dates
+    const fetchFilteredDates = async () => {
+      try {
+        const allDates: Date[] = []
+
+        for (const salonId of filterSalonIds) {
+          const res = await fetch(`/api/assigned-doctors?salon_id=${salonId}`)
+          if (res.ok) {
+            const assignedDoctors = await res.json()
+            const doctorDates = assignedDoctors
+              .filter((ad: any) => ad.doctor_id === filterDoctorId)
+              .map((ad: any) => new Date(ad.assigned_date))
+            allDates.push(...doctorDates)
+          }
+        }
+
+        // Sort dates and remove duplicates
+        const uniqueDates = allDates
+          .sort((a, b) => a.getTime() - b.getTime())
+          .filter((date, index, self) => index === 0 || date.getTime() !== self[index - 1].getTime())
+
+        setFilteredDates(uniqueDates)
+
+        // Jump to first filtered date if available
+        if (uniqueDates.length > 0) {
+          const firstDate = uniqueDates[0]
+          const monday = startOfWeek(firstDate, { weekStartsOn: 1 })
+          setCurrentWeekStart(monday)
+        }
+      } catch (error) {
+        console.error("[v0] Error fetching filtered dates:", error)
+      }
+    }
+
+    fetchFilteredDates()
+  }, [filterMode, filterDoctorId, filterSalonIds])
+
+  const getFilteredWeekDays = () => {
+    if (!filterMode || filteredDates.length === 0) {
+      return eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 4) }) // Mon-Fri
+    }
+
+    // Find the next 5 filtered dates starting from current position
+    const currentTime = currentWeekStart.getTime()
+    const nextDates = filteredDates.filter((d) => d.getTime() >= currentTime).slice(0, 5)
+
+    if (nextDates.length === 0) {
+      return eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 4) }) // Mon-Fri
+    }
+
+    return nextDates
+  }
+
+  const weekDays = getFilteredWeekDays()
   const weekEnd = addDays(currentWeekStart, 4)
   const weekSurgeries = surgeries.filter((s) => {
     if (!s.surgery_date) return false
@@ -190,6 +280,34 @@ export function FlipbookView({
       }, 600)
     }
   }, [isFlipping])
+
+  const nextFilteredWeek = () => {
+    if (!filterMode || filteredDates.length === 0) {
+      nextWeek()
+      return
+    }
+
+    const currentTime = currentWeekStart.getTime()
+    const currentIndex = filteredDates.findIndex((d) => d.getTime() >= currentTime)
+    const nextIndex = currentIndex + 5
+
+    if (nextIndex < filteredDates.length) {
+      setCurrentWeekStart(startOfWeek(filteredDates[nextIndex], { weekStartsOn: 1 }))
+    }
+  }
+
+  const prevFilteredWeek = () => {
+    if (!filterMode || filteredDates.length === 0) {
+      prevWeek()
+      return
+    }
+
+    const currentTime = currentWeekStart.getTime()
+    const currentIndex = filteredDates.findIndex((d) => d.getTime() >= currentTime)
+    const prevIndex = Math.max(0, currentIndex - 5)
+
+    setCurrentWeekStart(startOfWeek(filteredDates[prevIndex], { weekStartsOn: 1 }))
+  }
 
   const jumpToDate = useCallback((date: Date) => {
     // Find the Monday of the week containing the selected date
@@ -230,9 +348,9 @@ export function FlipbookView({
   const handleMouseUp = () => {
     if (dragStart !== null) {
       if (dragOffset > 100) {
-        prevWeek()
+        prevFilteredWeek()
       } else if (dragOffset < -100) {
-        nextWeek()
+        nextFilteredWeek()
       }
       setDragStart(null)
       setDragOffset(0)
@@ -242,20 +360,27 @@ export function FlipbookView({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") {
-        prevWeek()
+        prevFilteredWeek()
       } else if (e.key === "ArrowRight") {
-        nextWeek()
+        nextFilteredWeek()
       }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [prevWeek, nextWeek])
+  }, [])
 
   const handleMoveToWaitingList = async (surgeryId: string) => {
     if (confirm("Bu hastayı bekleme listesine taşımak istediğinize emin misiniz?")) {
       try {
         await moveToWaitingList(surgeryId)
+
+        const scrollTarget = {
+          date: format(currentWeekStart, "yyyy-MM-dd"),
+          salonId: selectedSalonId,
+        }
+        sessionStorage.setItem("flipbook_scroll_target", JSON.stringify(scrollTarget))
+
         window.location.reload()
       } catch (error: any) {
         alert(error.message || "Hasta bekleme listesine taşınırken bir hata oluştu")
@@ -333,6 +458,13 @@ export function FlipbookView({
       } else {
         await approveSurgery(surgeryId)
       }
+
+      const scrollTarget = {
+        date: format(currentWeekStart, "yyyy-MM-dd"),
+        salonId: selectedSalonId,
+      }
+      sessionStorage.setItem("flipbook_scroll_target", JSON.stringify(scrollTarget))
+
       window.location.reload()
     } catch (error: any) {
       alert(`Onay güncellenirken bir hata oluştu: ${error.message || "Bilinmeyen hata"}`)
@@ -397,19 +529,19 @@ export function FlipbookView({
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white border-b shadow-lg p-3 md:p-4">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-950 dark:to-slate-900 text-white border-b shadow-lg p-3 md:p-4">
         <div className="max-w-7xl mx-auto space-y-3">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             {/* Title and Home button */}
             <div className="flex items-center gap-3 w-full md:w-auto">
-              <Calendar className="h-5 w-5 md:h-6 md:w-6 text-blue-400" />
+              <Calendar className="h-5 w-5 md:h-6 md:w-6 text-blue-400 dark:text-blue-300" />
               <h1 className="text-lg md:text-2xl font-bold">Ameliyat Defteri</h1>
               <Link href="/" className="ml-auto md:ml-0">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-2 bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                  className="gap-2 bg-white/10 border-white/20 hover:bg-white/20 text-white dark:text-slate-100"
                 >
                   <Home className="h-4 w-4" />
                   <span className="hidden sm:inline">Anasayfa</span>
@@ -427,7 +559,7 @@ export function FlipbookView({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-2 bg-white/10 border-white/20 hover:bg-white/20 text-white w-full sm:w-auto"
+                    className="gap-2 bg-white/10 border-white/20 hover:bg-white/20 text-white dark:text-slate-100 w-full sm:w-auto"
                   >
                     <Calendar className="h-4 w-4" />
                     <span className="hidden sm:inline">Tarihe Git</span>
@@ -444,8 +576,8 @@ export function FlipbookView({
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={prevWeek}
-                  className="bg-white/10 border-white/20 hover:bg-white/20 text-white h-8 w-8 md:h-9 md:w-9"
+                  onClick={prevFilteredWeek}
+                  className="bg-white/10 border-white/20 hover:bg-white/20 text-white dark:text-slate-100 h-8 w-8 md:h-9 md:w-9"
                   disabled={isFlipping}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -457,8 +589,8 @@ export function FlipbookView({
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={nextWeek}
-                  className="bg-white/10 border-white/20 hover:bg-white/20 text-white h-8 w-8 md:h-9 md:w-9"
+                  onClick={nextFilteredWeek}
+                  className="bg-white/10 border-white/20 hover:bg-white/20 text-white dark:text-slate-100 h-8 w-8 md:h-9 md:w-9"
                   disabled={isFlipping}
                 >
                   <ChevronRight className="h-4 w-4" />
@@ -467,7 +599,7 @@ export function FlipbookView({
 
               {/* Salon selector */}
               <Select value={selectedSalonId} onValueChange={setSelectedSalonId}>
-                <SelectTrigger className="w-full sm:w-[180px] md:w-[200px] bg-white/10 border-white/20 text-white text-sm">
+                <SelectTrigger className="w-full sm:w-[180px] md:w-[200px] bg-white/10 border-white/20 text-white dark:text-slate-100 text-sm">
                   <SelectValue placeholder="Salon" />
                 </SelectTrigger>
                 <SelectContent>
@@ -478,6 +610,13 @@ export function FlipbookView({
                   ))}
                 </SelectContent>
               </Select>
+
+              <DoctorFilter
+                doctors={doctors}
+                selectedDoctors={filterDoctorId ? [filterDoctorId] : []}
+                onSelectionChange={handleDoctorFilterChange}
+                multiSelect={false}
+              />
             </div>
           </div>
         </div>
@@ -516,7 +655,7 @@ export function FlipbookView({
                   className={cn(
                     "flex flex-col shadow-lg overflow-hidden transition-all",
                     isToday && "ring-2 ring-blue-500",
-                    isDropTarget && "ring-2 ring-green-500 bg-green-50",
+                    isDropTarget && "ring-2 ring-green-500 bg-green-50 dark:bg-green-900/30",
                   )}
                 >
                   {/* Day header */}
@@ -532,14 +671,17 @@ export function FlipbookView({
                   <div className="flex-1 p-3 overflow-auto">
                     {/* Day notes section */}
                     {dayNotesForDay.length > 0 && (
-                      <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+                      <div className="mb-3 p-2 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded text-xs">
                         <div className="flex items-center gap-1 mb-1">
-                          <StickyNote className="h-3 w-3 text-amber-600" />
-                          <span className="font-semibold text-amber-900">Notlar</span>
+                          <StickyNote className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                          <span className="font-semibold text-amber-900 dark:text-amber-200">Notlar</span>
                         </div>
                         <div className="space-y-1">
                           {dayNotesForDay.map((note) => (
-                            <div key={note.id} className="text-amber-800 flex items-start justify-between group">
+                            <div
+                              key={note.id}
+                              className="text-amber-800 dark:text-amber-200 flex items-start justify-between group"
+                            >
                               <span className="text-xs">• {note.note}</span>
                               <Button
                                 variant="ghost"
@@ -562,7 +704,7 @@ export function FlipbookView({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="w-full text-xs h-7 bg-transparent"
+                            className="w-full text-xs h-7 bg-transparent dark:text-slate-100"
                             onClick={() => setSelectedDayForNote(dateKey)}
                           >
                             <StickyNote className="h-3 w-3 mr-1" />
@@ -576,13 +718,13 @@ export function FlipbookView({
                               value={selectedDayForNote === dateKey ? newDayNote : ""}
                               onChange={(e) => setNewDayNote(e.target.value)}
                               rows={3}
-                              className="text-sm"
+                              className="text-sm dark:text-slate-100"
                             />
                             <Button
                               size="sm"
                               onClick={handleAddDayNote}
                               disabled={isAddingDayNote || !newDayNote.trim() || selectedDayForNote !== dateKey}
-                              className="w-full"
+                              className="w-full dark:text-slate-100"
                             >
                               Ekle
                             </Button>
@@ -593,7 +735,7 @@ export function FlipbookView({
 
                     {/* Surgeries list */}
                     {daySurgeries.length === 0 ? (
-                      <div className="text-center text-muted-foreground py-4">
+                      <div className="text-center text-muted-foreground py-4 dark:text-slate-400">
                         <p className="text-xs">Ameliyat yok</p>
                       </div>
                     ) : (
@@ -601,7 +743,7 @@ export function FlipbookView({
                         {daySurgeries.map((surgery, index) => (
                           <div
                             key={surgery.id}
-                            className="border rounded p-2 hover:bg-slate-50 transition-colors text-xs relative"
+                            className="border rounded p-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-xs relative bg-white dark:bg-slate-800 dark:border-slate-600"
                             onDragStart={(e) => handleDragStart(e, surgery.id)}
                             draggable
                           >
@@ -616,16 +758,24 @@ export function FlipbookView({
                                 {index + 1}
                               </div>
                               <div className="flex-1 space-y-1 pr-6">
-                                <div className="font-semibold">{surgery.patient_name}</div>
-                                <div className="text-muted-foreground text-xs">{surgery.protocol_number}</div>
-                                <div className="text-xs">{surgery.indication}</div>
-                                <div className="text-xs text-blue-600">{surgery.procedure_name}</div>
-                                <div className="text-xs text-muted-foreground">
+                                <div className="font-semibold text-foreground dark:text-slate-100">
+                                  {surgery.patient_name}
+                                </div>
+                                <div className="text-muted-foreground text-xs dark:text-slate-400">
+                                  {surgery.protocol_number}
+                                </div>
+                                <div className="text-xs dark:text-slate-100">{surgery.indication}</div>
+                                <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                  {surgery.procedure_name}
+                                </div>
+                                <div className="text-xs text-muted-foreground dark:text-slate-400">
                                   {surgery.responsible_doctor?.name || "-"}
                                 </div>
-                                <div className="font-mono text-xs text-muted-foreground">{surgery.phone_number_1}</div>
+                                <div className="font-mono text-xs text-muted-foreground dark:text-slate-400">
+                                  {surgery.phone_number_1}
+                                </div>
                                 {surgery.creator && (
-                                  <div className="text-xs text-gray-500">
+                                  <div className="text-xs text-gray-500 dark:text-slate-400">
                                     Ekleyen: {surgery.creator.first_name} {surgery.creator.last_name}
                                   </div>
                                 )}
@@ -635,11 +785,11 @@ export function FlipbookView({
                                     {surgery.surgery_notes.map((note) => (
                                       <div
                                         key={note.id}
-                                        className="text-xs bg-yellow-50 border border-yellow-200 rounded p-2 flex items-start justify-between gap-2"
+                                        className="text-xs bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded p-2 flex items-start justify-between gap-2"
                                       >
                                         <div className="flex-1">
-                                          <p className="text-gray-700">{note.note}</p>
-                                          <p className="text-gray-400 text-[10px] mt-1">
+                                          <p className="text-gray-700 dark:text-gray-200">{note.note}</p>
+                                          <p className="text-gray-400 dark:text-gray-500 text-[10px] mt-1">
                                             {new Date(note.created_at).toLocaleDateString("tr-TR", {
                                               day: "2-digit",
                                               month: "2-digit",
@@ -651,7 +801,7 @@ export function FlipbookView({
                                         </div>
                                         <button
                                           onClick={() => setDeleteNoteId(note.id)}
-                                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
+                                          className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded dark:text-red-400 dark:hover:text-red-600 dark:hover:bg-red-900/20"
                                           title="Notu sil"
                                         >
                                           <X className="h-3 w-3" />
@@ -664,7 +814,11 @@ export function FlipbookView({
 
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 absolute top-2 right-8">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 absolute top-2 right-8 dark:text-slate-100"
+                                  >
                                     <List className="h-3 w-3" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -713,11 +867,11 @@ export function FlipbookView({
           </div>
 
           {/* Daily Operations List - Now comes first */}
-          <div className="bg-white rounded-lg border shadow-sm">
+          <div className="bg-white rounded-lg border shadow-sm dark:bg-slate-800 dark:border-slate-600">
             <Button
               variant="ghost"
               onClick={() => setShowOperationsList(!showOperationsList)}
-              className="w-full py-3 flex items-center justify-center gap-2"
+              className="w-full py-3 flex items-center justify-center gap-2 dark:text-slate-100"
             >
               {showOperationsList ? (
                 <>
@@ -749,11 +903,11 @@ export function FlipbookView({
             )}
           </div>
 
-          <div className="bg-white rounded-lg border shadow-sm">
+          <div className="bg-white rounded-lg border shadow-sm dark:bg-slate-800 dark:border-slate-600">
             <Button
               variant="ghost"
               onClick={() => setShowWaitingList(!showWaitingList)}
-              className="w-full py-3 flex items-center justify-center gap-2"
+              className="w-full py-3 flex items-center justify-center gap-2 dark:text-slate-100"
             >
               {showWaitingList ? (
                 <>
@@ -783,7 +937,7 @@ export function FlipbookView({
       </div>
 
       <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="dark:bg-slate-800 dark:text-slate-100">
           <DialogHeader>
             <DialogTitle>Hasta Notu Ekle</DialogTitle>
           </DialogHeader>
@@ -793,6 +947,7 @@ export function FlipbookView({
               value={surgeryNote}
               onChange={(e) => setSurgeryNote(e.target.value)}
               rows={4}
+              className="dark:bg-slate-700 dark:text-slate-100"
             />
             <div className="flex justify-end gap-2">
               <Button
@@ -802,10 +957,15 @@ export function FlipbookView({
                   setSelectedSurgeryForNote(null)
                   setSurgeryNote("")
                 }}
+                className="dark:text-slate-100"
               >
                 İptal
               </Button>
-              <Button onClick={handleAddNote} disabled={isAddingNote || !surgeryNote.trim()}>
+              <Button
+                onClick={handleAddNote}
+                disabled={isAddingNote || !surgeryNote.trim()}
+                className="dark:text-slate-100"
+              >
                 {isAddingNote ? "Ekleniyor..." : "Ekle"}
               </Button>
             </div>
@@ -814,17 +974,17 @@ export function FlipbookView({
       </Dialog>
 
       <AlertDialog open={!!deleteNoteId} onOpenChange={(open) => !open && setDeleteNoteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="dark:bg-slate-800 dark:text-slate-100">
           <AlertDialogHeader>
             <AlertDialogTitle>Notu silmek istediğinize emin misiniz?</AlertDialogTitle>
             <AlertDialogDescription>Bu işlem geri alınamaz. Not kalıcı olarak silinecektir.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogCancel className="dark:text-slate-100">İptal</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteNote}
               disabled={isDeletingNote}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600"
             >
               {isDeletingNote ? "Siliniyor..." : "Evet, Sil"}
             </AlertDialogAction>
@@ -846,6 +1006,52 @@ export function FlipbookView({
           surgery={editingSurgery}
         />
       )}
+
+      <Dialog open={showSalonDialog} onOpenChange={setShowSalonDialog}>
+        <DialogContent className="dark:bg-slate-800 dark:text-slate-100">
+          <DialogHeader>
+            <DialogTitle>Salon Seçimi</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground dark:text-slate-400">
+              Filtrelemek istediğiniz salonları seçin:
+            </p>
+            <div className="space-y-2">
+              {salons.map((salon) => (
+                <div key={salon.id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`salon-${salon.id}`}
+                    checked={filterSalonIds.includes(salon.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setFilterSalonIds([...filterSalonIds, salon.id])
+                      } else {
+                        setFilterSalonIds(filterSalonIds.filter((id) => id !== salon.id))
+                      }
+                    }}
+                    className="dark:bg-slate-700"
+                  />
+                  <Label htmlFor={`salon-${salon.id}`} className="dark:text-slate-100">
+                    {salon.name}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSalonDialog(false)} className="dark:text-slate-100">
+              İptal
+            </Button>
+            <Button
+              onClick={handleSalonFilterConfirm}
+              disabled={filterSalonIds.length === 0}
+              className="dark:text-slate-100"
+            >
+              Uygula
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -863,18 +1069,28 @@ function MiniCalendar({ currentDate, onSelectDate }: { currentDate: Date; onSele
   return (
     <div className="p-3">
       <div className="flex items-center justify-between mb-3">
-        <Button variant="ghost" size="icon" onClick={() => setViewMonth(subMonths(viewMonth, 1))}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setViewMonth(subMonths(viewMonth, 1))}
+          className="dark:text-slate-100"
+        >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div className="font-semibold">{format(viewMonth, "MMMM yyyy", { locale: tr })}</div>
-        <Button variant="ghost" size="icon" onClick={() => setViewMonth(addMonths(viewMonth, 1))}>
+        <div className="font-semibold dark:text-slate-100">{format(viewMonth, "MMMM yyyy", { locale: tr })}</div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setViewMonth(addMonths(viewMonth, 1))}
+          className="dark:text-slate-100"
+        >
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
 
       <div className="grid grid-cols-7 gap-1 mb-2">
         {["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"].map((day) => (
-          <div key={day} className="text-center text-xs font-medium text-muted-foreground p-1">
+          <div key={day} className="text-center text-xs font-medium text-muted-foreground p-1 dark:text-slate-400">
             {day}
           </div>
         ))}
@@ -907,6 +1123,7 @@ function MiniCalendar({ currentDate, onSelectDate }: { currentDate: Date; onSele
                 }
               }}
               disabled={isWeekendDay}
+              className="dark:text-slate-100"
             >
               {format(day, "d")}
             </Button>

@@ -44,24 +44,16 @@ export default async function HomePage() {
   const surgeries = surgeriesRes.data || []
   const dayNotes = dayNotesRes.data || []
 
-  console.log("[v0] Server-side fetched ALL surgeries for salon:", surgeries.length)
-  if (surgeries.length > 0) {
-    const dec31Surgeries = surgeries.filter((s: any) => s.surgery_date === "2025-12-31")
-    console.log("[v0] Dec 31 surgeries in initial data:", dec31Surgeries.length)
-    console.log(
-      "[v0] Dec 31 patients:",
-      dec31Surgeries.map((s: any) => s.patient_name),
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto px-2 sm:px-4 py-4 md:py-6">
         <div className="flex flex-col gap-3 mb-4 md:mb-6">
           <div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Ameliyat Takvimi</h2>
-            <p className="text-gray-600 mt-1 text-xs sm:text-sm md:text-base">Aylık ameliyat planlarını görüntüleyin</p>
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground">Ameliyat Takvimi</h2>
+            <p className="text-muted-foreground mt-1 text-xs sm:text-sm md:text-base">
+              Aylık ameliyat planlarını görüntüleyin
+            </p>
           </div>
           <div className="flex flex-col gap-2 w-full">
             <div className="w-full">

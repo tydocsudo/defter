@@ -155,25 +155,29 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
       draggable
       onDragStart={(e) => handleDragStart(e, surgery.id)}
       onDragEnd={handleDragEnd}
-      className={`bg-white border rounded-lg ${isHorizontal ? "p-2" : "p-3"} cursor-move hover:shadow-md transition-shadow ${
+      className={`bg-white dark:bg-slate-700 border dark:border-slate-600 rounded-lg ${isHorizontal ? "p-2" : "p-3"} cursor-move hover:shadow-md dark:hover:shadow-slate-900/50 transition-shadow ${
         draggedId === surgery.id ? "opacity-50" : ""
       }`}
     >
       <div className="flex items-start gap-2">
-        <GripVertical className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+        <GripVertical className="h-4 w-4 text-gray-400 dark:text-slate-400 mt-0.5 flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className={`${isHorizontal ? "text-xs" : "text-sm"} font-semibold text-gray-900 truncate`}>
+          <p
+            className={`${isHorizontal ? "text-xs" : "text-sm"} font-semibold text-gray-900 dark:text-slate-100 truncate`}
+          >
             {surgery.patient_name}
           </p>
           <p
-            className={`${isHorizontal ? "text-xs" : "text-xs"} text-gray-600 ${isHorizontal ? "truncate" : "mt-1"}`}
+            className={`${isHorizontal ? "text-xs" : "text-xs"} text-gray-600 dark:text-slate-300 ${isHorizontal ? "truncate" : "mt-1"}`}
             title={surgery.procedure_name}
           >
             {surgery.procedure_name}
           </p>
-          <p className={`text-xs text-gray-500 ${isHorizontal ? "" : "mt-1"}`}>{surgery.protocol_number}</p>
+          <p className={`text-xs text-gray-500 dark:text-slate-400 ${isHorizontal ? "" : "mt-1"}`}>
+            {surgery.protocol_number}
+          </p>
           {!isHorizontal && surgery.phone_number_1 && (
-            <p className="text-xs text-gray-500 mt-1">Tel: {surgery.phone_number_1}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Tel: {surgery.phone_number_1}</p>
           )}
         </div>
         <Button
@@ -191,10 +195,10 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
 
   return (
     <>
-      <Card className="w-full flex-shrink-0">
+      <Card className="w-full flex-shrink-0 dark:bg-slate-800 dark:border-slate-600">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 dark:text-slate-100">
               <ClipboardList className="h-4 w-4" />
               Bekleme Listesi
             </CardTitle>
@@ -203,7 +207,7 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
         </CardHeader>
         <CardContent>
           {waitingSurgeries.length === 0 ? (
-            <p className="text-xs text-gray-500 text-center py-4">Liste boş</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 text-center py-4">Liste boş</p>
           ) : layout === "horizontal" ? (
             <div className="flex gap-4 overflow-x-auto pb-2">
               {columns.map((column, columnIndex) => (
@@ -218,7 +222,11 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
             </div>
           )}
           <Link href="/waiting-list">
-            <Button variant="outline" size="sm" className="w-full mt-4 bg-transparent">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-4 bg-transparent dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
+            >
               Detaylı Görünüm
             </Button>
           </Link>
@@ -226,23 +234,25 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
       </Card>
 
       <Dialog open={autoFindOpen} onOpenChange={setAutoFindOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto dark:bg-slate-800 dark:border-slate-600">
           <DialogHeader>
-            <DialogTitle>Otomatik Yer Bul - {selectedSurgery?.patient_name}</DialogTitle>
+            <DialogTitle className="dark:text-slate-100">
+              Otomatik Yer Bul - {selectedSurgery?.patient_name}
+            </DialogTitle>
           </DialogHeader>
 
           {!showSlots ? (
             <div className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Salon Seçin</Label>
+                  <Label className="dark:text-slate-100">Salon Seçin</Label>
                   <Select value={autoFindSalonId} onValueChange={setAutoFindSalonId}>
-                    <SelectTrigger>
+                    <SelectTrigger className="dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
                       <SelectValue placeholder="Salon seçin" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="dark:bg-slate-700 dark:border-slate-600">
                       {salons.map((salon) => (
-                        <SelectItem key={salon.id} value={salon.id}>
+                        <SelectItem key={salon.id} value={salon.id} className="dark:text-slate-100">
                           {salon.name}
                         </SelectItem>
                       ))}
@@ -250,14 +260,14 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Doktor Seçin</Label>
+                  <Label className="dark:text-slate-100">Doktor Seçin</Label>
                   <Select value={autoFindDoctorId} onValueChange={setAutoFindDoctorId}>
-                    <SelectTrigger>
+                    <SelectTrigger className="dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100">
                       <SelectValue placeholder="Doktor seçin" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="dark:bg-slate-700 dark:border-slate-600">
                       {doctors.map((doctor) => (
-                        <SelectItem key={doctor.id} value={doctor.id}>
+                        <SelectItem key={doctor.id} value={doctor.id} className="dark:text-slate-100">
                           {doctor.name}
                         </SelectItem>
                       ))}
@@ -277,7 +287,11 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
             </div>
           ) : (
             <div className="space-y-4">
-              <Button variant="outline" onClick={() => setShowSlots(false)} className="mb-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowSlots(false)}
+                className="mb-2 dark:text-slate-100 dark:border-slate-600"
+              >
                 Geri Dön
               </Button>
               <AvailableSlotsDialog slots={availableSlots} onSelectSlot={handleSelectSlot} isLoading={isAssigning} />
