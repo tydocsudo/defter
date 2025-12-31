@@ -265,9 +265,17 @@ export function SurgeryForm({
       window.dispatchEvent(new Event("calendarDataChanged"))
       window.dispatchEvent(new Event("waitingListChanged"))
 
+      sessionStorage.setItem(
+        "flipbook_scroll_target",
+        JSON.stringify({
+          date: date,
+          salonId: pendingPatientData.salon_id,
+        }),
+      )
+
       setTimeout(() => {
-        console.log("[v0] Redirecting to:", `/fliphtml?date=${date}`)
-        window.location.href = `/fliphtml?date=${date}`
+        console.log("[v0] Redirecting to fliphtml with scroll target:", date)
+        window.location.href = "/fliphtml"
       }, 100)
     } catch (error: any) {
       console.error("[v0] Error assigning slot:", error)

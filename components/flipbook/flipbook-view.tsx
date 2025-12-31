@@ -37,7 +37,7 @@ import {
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import type { Salon, SurgeryWithDetails, DayNote, SurgeryNote, Doctor } from "@/lib/types"
+import type { SurgeryWithDetails, SurgeryNote } from "@/lib/types"
 import Link from "next/link"
 import { moveToWaitingList, assignFromWaitingList } from "@/lib/actions/surgeries"
 import { createDayNote, deleteDayNote, createSurgeryNote, deleteSurgeryNote } from "@/lib/actions/notes"
@@ -59,16 +59,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { SurgeryForm } from "@/components/surgery-form"
+import { PatientSearch } from "@/components/patient-search"
 
 interface SurgeryWithNotes extends SurgeryWithDetails {
   surgery_notes?: SurgeryNote[]
 }
 
 interface FlipbookViewProps {
-  salons: Salon[]
-  surgeries: SurgeryWithNotes[]
-  dayNotes: DayNote[]
-  doctors: Doctor[]
+  salons: any[]
+  surgeries: any[]
+  dayNotes: any[]
+  doctors: any[]
   initialDate?: string // Added initialDate prop to scroll to specific date
 }
 
@@ -83,7 +84,7 @@ export function FlipbookView({
   const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [isFlipping, setIsFlipping] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
-  const [editingSurgery, setEditingSurgery] = useState<SurgeryWithNotes | null>(null)
+  const [editingSurgery, setEditingSurgery] = useState<any | null>(null)
   const [newDayNote, setNewDayNote] = useState("")
   const [selectedDayForNote, setSelectedDayForNote] = useState<string>("")
   const [isAddingDayNote, setIsAddingDayNote] = useState(false)
@@ -92,6 +93,7 @@ export function FlipbookView({
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [selectedDayForList, setSelectedDayForList] = useState<Date | null>(new Date()) // Track selected day for operations list
   const [showOperationsList, setShowOperationsList] = useState(false) // Toggle visibility
+  const [showWaitingList, setShowWaitingList] = useState(true) // Toggle visibility
   const [noteDialogOpen, setNoteDialogOpen] = useState(false)
   const [selectedSurgeryForNote, setSelectedSurgeryForNote] = useState<string | null>(null)
   const [surgeryNote, setSurgeryNote] = useState("")
@@ -102,8 +104,8 @@ export function FlipbookView({
   const hasScrolledToInitialDate = useRef(false)
   const router = useRouter()
 
-  const [doctors, setDoctors] = useState<Doctor[]>(initialDoctors)
-  const [salons, setSalons] = useState<Salon[]>(initialSalons)
+  const salons = initialSalons
+  const doctors = initialDoctors
 
   useEffect(() => {
     if (salons.length > 0 && !selectedSalonId) {
@@ -112,6 +114,31 @@ export function FlipbookView({
   }, [salons, selectedSalonId])
 
   useEffect(() => {
+    // Check sessionStorage for scroll target (priority over URL params)
+    const scrollTarget = sessionStorage.getItem("flipbook_scroll_target")
+    if (scrollTarget) {
+      try {
+        const { date, salonId } = JSON.parse(scrollTarget)
+        if (date) {
+          const targetDate = parseISO(date)
+          if (isValid(targetDate)) {
+            const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
+            setCurrentWeekStart(weekStart)
+            if (salonId) {
+              setSelectedSalonId(salonId)
+            }
+            console.log("[v0] Scrolled to date from sessionStorage:", date, "salon:", salonId)
+          }
+        }
+        sessionStorage.removeItem("flipbook_scroll_target")
+      } catch (error) {
+        console.error("[v0] Error parsing scroll target:", error)
+        sessionStorage.removeItem("flipbook_scroll_target")
+      }
+      return
+    }
+
+    // Fallback to URL params for backwards compatibility
     if (initialDate && !hasScrolledToInitialDate.current) {
       try {
         const targetDate = parseISO(initialDate)
@@ -121,7 +148,7 @@ export function FlipbookView({
           hasScrolledToInitialDate.current = true
           console.log("[v0] Scrolled to week containing:", initialDate)
 
-          // Clean up URL parameter after scrolling to prevent incorrect redirects
+          // Clean up URL parameter after scrolling
           setTimeout(() => {
             router.replace("/fliphtml", { scroll: false })
           }, 500)
@@ -131,28 +158,6 @@ export function FlipbookView({
       }
     }
   }, [initialDate, router])
-
-  useEffect(() => {
-    const fetchDoctorsAndSalons = async () => {
-      try {
-        const [doctorsRes, salonsRes] = await Promise.all([fetch("/api/doctors"), fetch("/api/salons")])
-
-        if (doctorsRes.ok) {
-          const doctorsData = await doctorsRes.json()
-          setDoctors(doctorsData)
-        }
-
-        if (salonsRes.ok) {
-          const salonsData = await salonsRes.json()
-          setSalons(salonsData)
-        }
-      } catch (error) {
-        console.error("[v0] Error fetching doctors/salons:", error)
-      }
-    }
-
-    fetchDoctorsAndSalons()
-  }, [])
 
   const getWeekDays = (start: Date) => {
     return eachDayOfInterval({ start, end: addDays(start, 4) }) // Mon-Fri
@@ -374,6 +379,23 @@ export function FlipbookView({
     }
   }
 
+  const handlePatientSelect = (date: string, salonId: string | null) => {
+    try {
+      const targetDate = parseISO(date)
+      if (isValid(targetDate)) {
+        const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
+        setCurrentWeekStart(weekStart)
+        // Switch salon if patient is in a different salon
+        if (salonId && salonId !== selectedSalonId) {
+          setSelectedSalonId(salonId)
+        }
+        console.log("[v0] Navigated to patient date:", date, "salon:", salonId)
+      }
+    } catch (error) {
+      console.error("[v0] Error navigating to patient:", error)
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white border-b shadow-lg p-3 md:p-4">
@@ -393,6 +415,8 @@ export function FlipbookView({
                   <span className="hidden sm:inline">Anasayfa</span>
                 </Button>
               </Link>
+              {/* PatientSearch component between Home and Tarihe Git */}
+              <PatientSearch onSelectPatient={handlePatientSelect} />
             </div>
 
             {/* Navigation controls */}
@@ -688,10 +712,7 @@ export function FlipbookView({
             })}
           </div>
 
-          <div className="bg-white rounded-lg border shadow-sm p-4">
-            <WaitingListSidebar salons={salons} doctors={doctors} onDataChange={handleDataChange} layout="horizontal" />
-          </div>
-
+          {/* Daily Operations List - Now comes first */}
           <div className="bg-white rounded-lg border shadow-sm">
             <Button
               variant="ghost"
@@ -723,6 +744,37 @@ export function FlipbookView({
                   weekDays={weekDays}
                   onDateChange={setSelectedDayForList}
                   selectedSalonId={selectedSalonId}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-lg border shadow-sm">
+            <Button
+              variant="ghost"
+              onClick={() => setShowWaitingList(!showWaitingList)}
+              className="w-full py-3 flex items-center justify-center gap-2"
+            >
+              {showWaitingList ? (
+                <>
+                  <ChevronUp className="h-4 w-4" />
+                  Bekleme Listesini Gizle
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4" />
+                  Bekleme Listesini Göster
+                </>
+              )}
+            </Button>
+
+            {showWaitingList && (
+              <div className="p-4">
+                <WaitingListSidebar
+                  salons={salons}
+                  doctors={doctors}
+                  onDataChange={handleDataChange}
+                  layout="horizontal"
                 />
               </div>
             )}

@@ -83,7 +83,15 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
       setAssignDate("")
       setDateError(null)
 
-      window.location.href = `/fliphtml?date=${assignDate}`
+      sessionStorage.setItem(
+        "flipbook_scroll_target",
+        JSON.stringify({
+          date: assignDate,
+          salonId: assignSalonId,
+        }),
+      )
+
+      window.location.href = "/fliphtml"
     } catch (error: any) {
       alert(error.message || "Atama yapılırken bir hata oluştu")
     } finally {
@@ -160,7 +168,7 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
       setAvailableSlots([])
       setAutoFindStep("patient")
 
-      window.location.href = `/fliphtml?date=${date}`
+      window.location.href = "/fliphtml"
     } catch (error: any) {
       alert(error.message || "Atama yapılırken bir hata oluştu")
     } finally {
