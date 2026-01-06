@@ -368,3 +368,70 @@ export async function deleteSurgeryNote(noteId: string) {
   revalidatePath("/fliphtml")
   return { success: true }
 }
+
+export async function bulkMoveToWaitingListByMonth(year: number, month: number) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+
+  // Get all surgeries in the specified month
+  const startDate = `${year}-${String(month).padStart(2, "0")}-01`
+  const endDate = `${year}-${String(month).padStart(2, "0")}-31`
+
+  console.log("[v0] Bulk moving surgeries to waiting list:", { year, month, startDate, endDate })
+
+  const { data: surgeries, error: fetchError } = await supabase
+    .from("surgeries")
+    .select("id, patient_name, salon_id, surgery_date")
+    .gte("surgery_date", startDate)
+    .lte("surgery_date", endDate)
+    .eq("is_waiting_list", false)
+
+  if (fetchError) {
+    console.error("[v0] Error fetching surgeries:", fetchError)
+    throw new Error(fetchError.message)
+  }
+
+  if (!surgeries || surgeries.length === 0) {
+    return { success: true, count: 0, message: "No surgeries found for this month" }
+  }
+
+  console.log("[v0] Found", surgeries.length, "surgeries to move")
+
+  // Move all surgeries to waiting list
+  const { error: updateError } = await supabase
+    .from("surgeries")
+    .update({
+      is_waiting_list: true,
+      salon_id: null,
+      surgery_date: null,
+      updated_at: new Date().toISOString(),
+    })
+    .in(
+      "id",
+      surgeries.map((s) => s.id),
+    )
+
+  if (updateError) {
+    console.error("[v0] Error moving surgeries:", updateError)
+    throw new Error(updateError.message)
+  }
+
+  // Log activity for bulk operation
+  await logActivity("Toplu Bekleme Listesine Alındı", {
+    year,
+    month,
+    count: surgeries.length,
+    patient_names: surgeries.map((s) => s.patient_name).join(", "),
+  })
+
+  console.log("[v0] Successfully moved", surgeries.length, "surgeries to waiting list")
+
+  revalidatePath("/")
+  revalidatePath("/waiting-list")
+  revalidatePath("/fliphtml")
+  revalidatePath("/admin")
+
+  return { success: true, count: surgeries.length }
+}

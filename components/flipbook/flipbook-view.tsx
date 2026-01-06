@@ -84,7 +84,13 @@ export function FlipbookView({
   initialDate,
 }: FlipbookViewProps) {
   const [selectedSalonId, setSelectedSalonId] = useState<string>("")
-  const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const today = new Date()
+    if (!isValid(today)) {
+      return startOfWeek(new Date(Date.now()), { weekStartsOn: 1 })
+    }
+    return startOfWeek(today, { weekStartsOn: 1 })
+  })
   const [isFlipping, setIsFlipping] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [editingSurgery, setEditingSurgery] = useState<any | null>(null)
@@ -200,24 +206,50 @@ export function FlipbookView({
       return
     }
 
-    // Fetch assigned doctors for all selected salons to find dates
+    let isCancelled = false
+
     const fetchFilteredDates = async () => {
       try {
         const allDates: Date[] = []
 
         for (const salonId of filterSalonIds) {
+          if (isCancelled) return
+
           const res = await fetch(`/api/assigned-doctors?salon_id=${salonId}`)
-          if (res.ok) {
-            const assignedDoctors = await res.json()
-            const doctorDates = assignedDoctors
-              .filter((ad: any) => ad.doctor_id === filterDoctorId)
-              .map((ad: any) => new Date(ad.assigned_date))
-            allDates.push(...doctorDates)
+
+          if (!res.ok) {
+            console.error("[v0] Failed to fetch assigned doctors, status:", res.status)
+            continue
           }
+
+          const text = await res.text()
+          if (!text) continue
+
+          let assignedDoctors
+          try {
+            assignedDoctors = JSON.parse(text)
+          } catch (parseError) {
+            console.error("[v0] Invalid JSON response for assigned doctors")
+            continue
+          }
+
+          if (!Array.isArray(assignedDoctors)) continue
+
+          const doctorDates = assignedDoctors
+            .filter((ad: any) => ad.doctor_id === filterDoctorId && ad.assigned_date)
+            .map((ad: any) => {
+              const date = new Date(ad.assigned_date)
+              return isValid(date) ? date : null
+            })
+            .filter((date: Date | null): date is Date => date !== null)
+          allDates.push(...doctorDates)
         }
+
+        if (isCancelled) return
 
         // Sort dates and remove duplicates
         const uniqueDates = allDates
+          .filter((date) => isValid(date))
           .sort((a, b) => a.getTime() - b.getTime())
           .filter((date, index, self) => index === 0 || date.getTime() !== self[index - 1].getTime())
 
@@ -226,39 +258,58 @@ export function FlipbookView({
         // Jump to first filtered date if available
         if (uniqueDates.length > 0) {
           const firstDate = uniqueDates[0]
-          const monday = startOfWeek(firstDate, { weekStartsOn: 1 })
-          setCurrentWeekStart(monday)
+          if (isValid(firstDate)) {
+            const monday = startOfWeek(firstDate, { weekStartsOn: 1 })
+            setCurrentWeekStart(monday)
+          }
         }
       } catch (error) {
         console.error("[v0] Error fetching filtered dates:", error)
       }
     }
 
-    fetchFilteredDates()
+    const timeoutId = setTimeout(fetchFilteredDates, 100)
+
+    return () => {
+      isCancelled = true
+      clearTimeout(timeoutId)
+    }
   }, [filterMode, filterDoctorId, filterSalonIds])
 
+  const getSafeCurrentWeekStart = useCallback(() => {
+    if (!isValid(currentWeekStart)) {
+      const today = new Date()
+      return startOfWeek(today, { weekStartsOn: 1 })
+    }
+    return currentWeekStart
+  }, [currentWeekStart])
+
   const getFilteredWeekDays = () => {
+    const safeWeekStart = getSafeCurrentWeekStart()
+
     if (!filterMode || filteredDates.length === 0) {
-      return eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 4) }) // Mon-Fri
+      return eachDayOfInterval({ start: safeWeekStart, end: addDays(safeWeekStart, 4) }) // Mon-Fri
     }
 
     // Find the next 5 filtered dates starting from current position
-    const currentTime = currentWeekStart.getTime()
-    const nextDates = filteredDates.filter((d) => d.getTime() >= currentTime).slice(0, 5)
+    const currentTime = safeWeekStart.getTime()
+    const nextDates = filteredDates.filter((d) => isValid(d) && d.getTime() >= currentTime).slice(0, 5)
 
     if (nextDates.length === 0) {
-      return eachDayOfInterval({ start: currentWeekStart, end: addDays(currentWeekStart, 4) }) // Mon-Fri
+      return eachDayOfInterval({ start: safeWeekStart, end: addDays(safeWeekStart, 4) }) // Mon-Fri
     }
 
     return nextDates
   }
 
   const weekDays = getFilteredWeekDays()
-  const weekEnd = addDays(currentWeekStart, 4)
+  const safeWeekStart = getSafeCurrentWeekStart()
+  const weekEnd = addDays(safeWeekStart, 4)
   const weekSurgeries = surgeries.filter((s) => {
     if (!s.surgery_date) return false
     const surgeryDate = new Date(s.surgery_date)
-    return surgeryDate >= currentWeekStart && surgeryDate <= weekEnd
+    if (!isValid(surgeryDate)) return false
+    return surgeryDate >= safeWeekStart && surgeryDate <= weekEnd
   })
 
   const nextWeek = useCallback(() => {
@@ -371,20 +422,22 @@ export function FlipbookView({
   }, [])
 
   const handleMoveToWaitingList = async (surgeryId: string) => {
-    if (confirm("Bu hastayı bekleme listesine taşımak istediğinize emin misiniz?")) {
-      try {
-        await moveToWaitingList(surgeryId)
-
-        const scrollTarget = {
-          date: format(currentWeekStart, "yyyy-MM-dd"),
-          salonId: selectedSalonId,
-        }
-        sessionStorage.setItem("flipbook_scroll_target", JSON.stringify(scrollTarget))
-
+    try {
+      const result = await moveToWaitingList(surgeryId)
+      if (result.success) {
+        // Save current view state before reload
+        const safeDate = getSafeCurrentWeekStart()
+        sessionStorage.setItem(
+          "flipbook_scroll_target",
+          JSON.stringify({
+            date: format(safeDate, "yyyy-MM-dd"),
+            salonId: selectedSalonId,
+          }),
+        )
         window.location.reload()
-      } catch (error: any) {
-        alert(error.message || "Hasta bekleme listesine taşınırken bir hata oluştu")
       }
+    } catch (error) {
+      console.error("Failed to move surgery to waiting list:", error)
     }
   }
 
@@ -451,23 +504,29 @@ export function FlipbookView({
     return dayNotes.filter((note) => note.note_date === dateKey && note.salon_id === selectedSalonId)
   }
 
-  const handleApprove = async (surgeryId: string, isApproved: boolean) => {
+  const handleApprove = async (surgeryId: string) => {
     try {
-      if (isApproved) {
+      const surgery = surgeries.find((s) => s.id === surgeryId)
+      if (!surgery) return
+
+      if (surgery.is_approved) {
         await unapproveSurgery(surgeryId)
       } else {
         await approveSurgery(surgeryId)
       }
 
-      const scrollTarget = {
-        date: format(currentWeekStart, "yyyy-MM-dd"),
-        salonId: selectedSalonId,
-      }
-      sessionStorage.setItem("flipbook_scroll_target", JSON.stringify(scrollTarget))
-
+      // Save current view state before reload
+      const safeDate = getSafeCurrentWeekStart()
+      sessionStorage.setItem(
+        "flipbook_scroll_target",
+        JSON.stringify({
+          date: format(safeDate, "yyyy-MM-dd"),
+          salonId: selectedSalonId,
+        }),
+      )
       window.location.reload()
-    } catch (error: any) {
-      alert(`Onay güncellenirken bir hata oluştu: ${error.message || "Bilinmeyen hata"}`)
+    } catch (error) {
+      console.error("Failed to update surgery approval:", error)
     }
   }
 
@@ -583,8 +642,13 @@ export function FlipbookView({
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <div className="text-xs md:text-sm text-center font-semibold whitespace-nowrap">
-                  {format(currentWeekStart, "d MMM", { locale: tr })} -{" "}
-                  {format(weekDays[4], "d MMM yyyy", { locale: tr })}
+                  {isValid(safeWeekStart) && isValid(weekEnd) ? (
+                    <>
+                      {format(safeWeekStart, "d MMM", { locale: tr })} - {format(weekEnd, "d MMM yyyy", { locale: tr })}
+                    </>
+                  ) : (
+                    "Tarih yükleniyor..."
+                  )}
                 </div>
                 <Button
                   variant="outline"
@@ -827,7 +891,7 @@ export function FlipbookView({
                                     <Edit className="h-3 w-3 mr-2" />
                                     Düzenle
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleApprove(surgery.id, surgery.is_approved)}>
+                                  <DropdownMenuItem onClick={() => handleApprove(surgery.id)}>
                                     {surgery.is_approved ? (
                                       <>
                                         <X className="h-3 w-3 mr-2" />

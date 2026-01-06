@@ -157,6 +157,7 @@ export function MonthlyCalendar({
   }
 
   const dayNames = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]
+  const dayNamesShort = ["Pzt", "Sal", "Çar", "Per", "Cum"]
 
   const surgeryColors = [
     "bg-blue-100 dark:bg-blue-700/70 border-blue-300 dark:border-blue-500 text-blue-900 dark:text-blue-50",
@@ -189,6 +190,7 @@ export function MonthlyCalendar({
             const dayOfWeek = date.getDay()
             const dayNameIndex = dayOfWeek === 0 ? 6 : dayOfWeek - 1
             const dayName = dayNames[dayNameIndex]
+            const dayNameShort = dayNamesShort[dayNameIndex]
 
             return (
               <div
@@ -218,7 +220,12 @@ export function MonthlyCalendar({
                             !isToday && !doctorHighlight && "text-foreground",
                           )}
                         >
-                          {day} - {dayName}
+                          <span className="hidden sm:inline">
+                            {day} - {dayName}
+                          </span>
+                          <span className="inline sm:hidden">
+                            {day} - {dayNameShort}
+                          </span>
                         </span>
                         {hasNotes && (
                           <div

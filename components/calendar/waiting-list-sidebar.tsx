@@ -42,7 +42,31 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
   const fetchWaitingList = async () => {
     try {
       const res = await fetch("/api/surgeries?is_waiting_list=true")
-      const data = await res.json()
+
+      if (!res.ok) {
+        console.error("[v0] Waiting list fetch failed with status:", res.status)
+        return
+      }
+
+      const text = await res.text()
+      if (!text) {
+        console.error("[v0] Waiting list response is empty")
+        return
+      }
+
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch (parseError) {
+        console.error("[v0] Waiting list response is not valid JSON:", text.substring(0, 100))
+        return
+      }
+
+      if (!Array.isArray(data)) {
+        console.error("[v0] Waiting list response is not an array:", data)
+        return
+      }
+
       const actualWaiting = data.filter((s: any) => !s.salon_id && !s.surgery_date)
       setWaitingSurgeries(actualWaiting)
     } catch (error) {
