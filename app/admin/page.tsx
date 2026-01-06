@@ -76,7 +76,7 @@ export default async function AdminPage() {
           </TabsContent>
 
           <TabsContent value="bulk">
-            <BulkOperations />
+            <BulkOperations salons={salons} doctors={doctors} />
           </TabsContent>
 
           <TabsContent value="logs">

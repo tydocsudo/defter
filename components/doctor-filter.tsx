@@ -107,7 +107,7 @@ export function DoctorFilter({ doctors, selectedDoctors, onSelectionChange, mult
           className={`gap-2 ${
             selectedDoctors.length > 0
               ? "bg-blue-500/30 border-blue-400 text-white"
-              : "bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              : "bg-gray-200 dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-white/20"
           }`}
         >
           <Filter className="h-4 w-4" />

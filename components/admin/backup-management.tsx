@@ -1,12 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Download, Database, Calendar } from "lucide-react"
+import { Download, Database, Calendar, Loader2, Upload } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
+import { restoreFromBackup } from "@/lib/actions/surgeries"
 
 export function BackupManagement() {
   const [isExporting, setIsExporting] = useState(false)
@@ -19,6 +22,12 @@ export function BackupManagement() {
     daily_assigned_doctors: true,
     profiles: false, // Profiles excluded by default for security
   })
+  const [isRestoring, setIsRestoring] = useState(false)
+  const [restoreOptions, setRestoreOptions] = useState({
+    skipExisting: true,
+    tables: [] as string[],
+  })
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleToggleTable = (table: string) => {
     setSelectedTables((prev) => ({
@@ -141,6 +150,53 @@ export function BackupManagement() {
     }
   }
 
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const backupData = JSON.parse(text)
+
+      // Get available tables from backup
+      const availableTables = Object.keys(backupData).filter((key) => Array.isArray(backupData[key]))
+
+      if (availableTables.length === 0) {
+        toast.error("Geçersiz yedekleme dosyası")
+        return
+      }
+
+      // Ask user which tables to restore
+      const confirmed = window.confirm(
+        `Yedekleme dosyasında ${availableTables.length} tablo bulundu:\n${availableTables.join(", ")}\n\nMevcut kayıtları atlamak ister misiniz?\n(Evet = Mevcut kayıtlar korunur, Hayır = Mevcut kayıtlar güncellenir)`,
+      )
+
+      if (confirmed === null) return
+
+      setIsRestoring(true)
+
+      const result = await restoreFromBackup(backupData, {
+        skipExisting: confirmed,
+        tables: availableTables,
+      })
+
+      // Show results
+      const summary = Object.entries(result.results)
+        .map(([table, stats]) => `${table}: ${stats.inserted} eklendi, ${stats.skipped} atlandı, ${stats.errors} hata`)
+        .join("\n")
+
+      toast.success(`Geri yükleme tamamlandı:\n${summary}`)
+    } catch (error: any) {
+      console.error("[v0] Restore error:", error)
+      toast.error(error.message || "Geri yükleme sırasında hata oluştu")
+    } finally {
+      setIsRestoring(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }
+  }
+
   const tableDescriptions: Record<string, string> = {
     salons: "Salon bilgileri",
     doctors: "Hoca bilgileri",
@@ -203,6 +259,44 @@ export function BackupManagement() {
             <Download className="h-4 w-4 mr-2" />
             CSV Olarak İndir
           </Button>
+        </div>
+
+        <div className="pt-6 border-t dark:border-slate-700">
+          <h3 className="text-sm font-medium mb-3 dark:text-slate-200">Yedekten Geri Yükle</h3>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileSelect}
+            className="hidden"
+            id="restore-file"
+          />
+
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isRestoring}
+            variant="outline"
+            className="w-full dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
+          >
+            {isRestoring ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+            JSON Yedekleme Dosyası Yükle
+          </Button>
+
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg mt-3">
+            <div className="flex items-start gap-2">
+              <Calendar className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">Geri Yükleme Uyarıları</p>
+                <ul className="text-sm text-yellow-800 dark:text-yellow-300 space-y-1 list-disc list-inside">
+                  <li>Yalnızca JSON formatındaki yedekleme dosyaları desteklenir</li>
+                  <li>Geri yükleme sırasında mevcut kayıtları atlama seçeneği sunulur</li>
+                  <li>Aynı protokol numarasına sahip hastalar mevcut kayıt olarak kabul edilir</li>
+                  <li>Geri yükleme işlemi geri alınamaz, önce yedek almanız önerilir</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">

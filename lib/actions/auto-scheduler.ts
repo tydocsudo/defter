@@ -34,8 +34,7 @@ export async function findAvailableDates(
       return { success: false, error: "Salon bulunamadı" }
     }
 
-    // Define capacity limits
-    const maxCapacity = salon.name === "Salon 5" ? 3 : salon.name === "Salon 6" ? 2 : 3
+    const maxCapacity = salon.name === "Salon 5" ? 4 : salon.name === "Salon 6" ? 3 : 3
 
     // Search for available dates in next 3 months (90 days)
     const today = startOfDay(new Date())

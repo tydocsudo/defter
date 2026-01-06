@@ -25,6 +25,7 @@ import { createSurgeryNote } from "@/lib/actions/notes"
 import { findAvailableDates } from "@/lib/actions/auto-scheduler"
 import { AvailableSlotsDialog } from "@/components/waiting-list/available-slots-dialog"
 import { Badge } from "@/components/ui/badge"
+import { DoctorFilter } from "@/components/doctor-filter"
 
 interface WaitingListTableProps {
   surgeries: SurgeryWithDetails[]
@@ -64,6 +65,7 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
   const [isSearchingSlots, setIsSearchingSlots] = useState(false)
   const [autoFindStep, setAutoFindStep] = useState<"patient" | "salon" | "doctor" | "results">("patient")
   const [dateError, setDateError] = useState<string | null>(null)
+  const [selectedDoctors, setSelectedDoctors] = useState<string[]>([])
 
   const router = useRouter()
 
@@ -176,6 +178,11 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
     }
   }
 
+  const filteredSurgeries =
+    selectedDoctors.length > 0
+      ? surgeries.filter((s) => s.responsible_doctor_id && selectedDoctors.includes(s.responsible_doctor_id))
+      : surgeries
+
   return (
     <>
       <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
@@ -202,37 +209,50 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
             DENEYSEL
           </Badge>
         </Button>
+
+        <div className="sm:ml-auto">
+          <DoctorFilter
+            doctors={doctors}
+            selectedDoctors={selectedDoctors}
+            onSelectionChange={setSelectedDoctors}
+            multiSelect={true}
+          />
+        </div>
       </div>
 
-      {surgeries.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">Bekleme listesinde hasta yok</div>
+      {filteredSurgeries.length === 0 ? (
+        <div className="text-center py-12 text-gray-500 dark:text-slate-400">
+          {selectedDoctors.length > 0
+            ? "Seçili hocalara ait bekleme listesinde hasta yok"
+            : "Bekleme listesinde hasta yok"}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Hasta Adı</TableHead>
-                <TableHead>Protokol No</TableHead>
-                <TableHead>Yapılacak İşlem</TableHead>
-                <TableHead>Sorumlu Hoca</TableHead>
-                <TableHead>Telefon</TableHead>
-                <TableHead>Ekleyen</TableHead>
-                <TableHead>Eklenme Tarihi</TableHead>
-                <TableHead className="text-right">İşlemler</TableHead>
+                <TableHead className="dark:text-slate-100">Hasta Adı</TableHead>
+                <TableHead className="dark:text-slate-100">Protokol No</TableHead>
+                <TableHead className="dark:text-slate-100">Yapılacak İşlem</TableHead>
+                <TableHead className="dark:text-slate-100">Sorumlu Hoca</TableHead>
+                <TableHead className="dark:text-slate-100">Telefon</TableHead>
+                <TableHead className="dark:text-slate-100">Ekleyen</TableHead>
+                <TableHead className="dark:text-slate-100">Eklenme Tarihi</TableHead>
+                <TableHead className="text-right dark:text-slate-100">İşlemler</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {surgeries.map((surgery) => (
+              {filteredSurgeries.map((surgery) => (
                 <TableRow key={surgery.id}>
-                  <TableCell className="font-medium">{surgery.patient_name}</TableCell>
-                  <TableCell>{surgery.protocol_number}</TableCell>
-                  <TableCell className="max-w-xs">{surgery.procedure_name}</TableCell>
-                  <TableCell>{surgery.responsible_doctor?.name || "-"}</TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="font-medium dark:text-slate-100">{surgery.patient_name}</TableCell>
+                  <TableCell className="dark:text-slate-100">{surgery.protocol_number}</TableCell>
+                  <TableCell className="max-w-xs dark:text-slate-100">{surgery.procedure_name}</TableCell>
+                  <TableCell className="dark:text-slate-100">{surgery.responsible_doctor?.name || "-"}</TableCell>
+                  <TableCell className="text-sm dark:text-slate-100">
                     <div>{surgery.phone_number_1}</div>
-                    <div className="text-gray-500">{surgery.phone_number_2}</div>
+                    <div className="text-gray-500 dark:text-slate-400">{surgery.phone_number_2}</div>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-sm dark:text-slate-100">
                     {surgery.creator ? (
                       <div>
                         {surgery.creator.first_name} {surgery.creator.last_name}
@@ -241,7 +261,9 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
                       "-"
                     )}
                   </TableCell>
-                  <TableCell className="text-sm">{new Date(surgery.created_at).toLocaleDateString("tr-TR")}</TableCell>
+                  <TableCell className="text-sm dark:text-slate-100">
+                    {new Date(surgery.created_at).toLocaleDateString("tr-TR")}
+                  </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -249,8 +271,11 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setSelectedSurgery(surgery.id)}>
+                      <DropdownMenuContent align="end" className="dark:bg-slate-700 dark:border-slate-600">
+                        <DropdownMenuItem
+                          onClick={() => setSelectedSurgery(surgery.id)}
+                          className="dark:text-slate-100"
+                        >
                           <Calendar className="h-4 w-4 mr-2" />
                           Takvime Ata
                         </DropdownMenuItem>
@@ -259,6 +284,7 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
                             setSelectedSurgeryForNote(surgery.id)
                             setNoteDialogOpen(true)
                           }}
+                          className="dark:text-slate-100"
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />
                           Not Ekle

@@ -435,3 +435,236 @@ export async function bulkMoveToWaitingListByMonth(year: number, month: number) 
 
   return { success: true, count: surgeries.length }
 }
+
+export async function bulkCreateSurgeriesForDate(
+  salonId: string,
+  surgeryDate: string,
+  patients: Array<{
+    patient_name: string
+    protocol_number: string
+    indication: string
+    procedure_name: string
+    responsible_doctor_id: string | null
+    phone_number_1: string
+    phone_number_2: string
+  }>,
+) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+
+  console.log("[v0] Bulk creating surgeries for date:", { salonId, surgeryDate, count: patients.length })
+
+  const surgeriesData = patients.map((patient) => ({
+    ...patient,
+    salon_id: salonId,
+    surgery_date: surgeryDate,
+    is_waiting_list: false,
+    created_by: user.id,
+    is_approved: false,
+  }))
+
+  const { data, error } = await supabase.from("surgeries").insert(surgeriesData).select()
+
+  if (error) {
+    console.error("[v0] Error bulk creating surgeries:", error)
+    throw new Error(error.message)
+  }
+
+  await logActivity("Toplu Hasta Eklendi", {
+    salon_id: salonId,
+    surgery_date: surgeryDate,
+    count: patients.length,
+    patient_names: patients.map((p) => p.patient_name).join(", "),
+  })
+
+  console.log("[v0] Successfully created", data.length, "surgeries")
+
+  revalidatePath("/")
+  revalidatePath("/waiting-list")
+  revalidatePath("/fliphtml")
+
+  return { success: true, count: data.length, data }
+}
+
+export async function restoreFromBackup(
+  backupData: any,
+  options: {
+    skipExisting: boolean
+    tables: string[]
+  },
+) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+  const results: Record<string, { inserted: number; skipped: number; updated: number; errors: number }> = {}
+
+  console.log("[v0] Starting restore from backup:", { tables: options.tables, skipExisting: options.skipExisting })
+
+  for (const table of options.tables) {
+    if (!backupData[table]) {
+      console.log(`[v0] No data found for table: ${table}`)
+      continue
+    }
+
+    const records = backupData[table]
+    results[table] = { inserted: 0, skipped: 0, updated: 0, errors: 0 }
+
+    console.log(`[v0] Processing ${records.length} records for table: ${table}`)
+
+    for (const record of records) {
+      try {
+        // Check if record exists based on unique fields
+        let existingRecord = null
+
+        if (table === "salons" && record.name) {
+          const { data } = await supabase.from("salons").select("id").eq("name", record.name).single()
+          existingRecord = data
+        } else if (table === "doctors" && record.name) {
+          const { data } = await supabase.from("doctors").select("id").eq("name", record.name).single()
+          existingRecord = data
+        } else if (table === "surgeries" && record.protocol_number) {
+          const { data } = await supabase
+            .from("surgeries")
+            .select("id")
+            .eq("protocol_number", record.protocol_number)
+            .single()
+          existingRecord = data
+        } else if (table === "profiles" && record.username) {
+          const { data } = await supabase.from("profiles").select("id").eq("username", record.username).single()
+          existingRecord = data
+        }
+
+        if (existingRecord && options.skipExisting) {
+          results[table].skipped++
+          continue
+        }
+
+        // Create a copy without id for insertion
+        const { id, created_at, updated_at, ...recordWithoutId } = record
+
+        if (existingRecord) {
+          // Update existing record
+          const { error } = await supabase.from(table).update(recordWithoutId).eq("id", existingRecord.id)
+          if (error) {
+            console.error(`[v0] Error updating ${table} record:`, error)
+            results[table].errors++
+          } else {
+            results[table].updated++
+          }
+        } else {
+          // Insert new record without the original id - let database generate new id
+          const { error } = await supabase.from(table).insert(recordWithoutId)
+          if (error) {
+            console.error(`[v0] Error inserting ${table} record:`, error)
+            results[table].errors++
+          } else {
+            results[table].inserted++
+          }
+        }
+      } catch (err) {
+        console.error(`[v0] Error processing ${table} record:`, err)
+        results[table].errors++
+      }
+    }
+  }
+
+  await logActivity("Yedekten Geri Yükleme", {
+    tables: options.tables,
+    results,
+  })
+
+  console.log("[v0] Restore complete:", results)
+
+  revalidatePath("/")
+  revalidatePath("/waiting-list")
+  revalidatePath("/fliphtml")
+  revalidatePath("/admin")
+
+  return { success: true, results }
+}
+
+export async function bulkReassignPatientsByDate(
+  surgeryDate: string,
+  currentSalonId: string,
+  updates: {
+    newSalonId?: string
+    newDoctorId?: string
+  },
+) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+
+  console.log("[v0] Bulk reassigning patients for date:", { surgeryDate, currentSalonId, updates })
+
+  // Get all surgeries for the specified date and salon
+  const { data: surgeries, error: fetchError } = await supabase
+    .from("surgeries")
+    .select("id, patient_name, salon_id, responsible_doctor_id")
+    .eq("surgery_date", surgeryDate)
+    .eq("salon_id", currentSalonId)
+    .eq("is_waiting_list", false)
+
+  if (fetchError) {
+    console.error("[v0] Error fetching surgeries:", fetchError)
+    throw new Error(fetchError.message)
+  }
+
+  if (!surgeries || surgeries.length === 0) {
+    return { success: true, count: 0, message: "Bu tarih ve salonda hasta bulunamadı" }
+  }
+
+  console.log("[v0] Found", surgeries.length, "surgeries to reassign")
+
+  // Prepare update data
+  const updateData: any = {
+    updated_at: new Date().toISOString(),
+  }
+
+  if (updates.newSalonId) {
+    updateData.salon_id = updates.newSalonId
+  }
+
+  if (updates.newDoctorId) {
+    updateData.responsible_doctor_id = updates.newDoctorId
+  }
+
+  // Update all surgeries
+  const { error: updateError } = await supabase
+    .from("surgeries")
+    .update(updateData)
+    .in(
+      "id",
+      surgeries.map((s) => s.id),
+    )
+
+  if (updateError) {
+    console.error("[v0] Error reassigning surgeries:", updateError)
+    throw new Error(updateError.message)
+  }
+
+  // Log activity
+  await logActivity("Toplu Hasta Yeniden Atandı", {
+    surgery_date: surgeryDate,
+    current_salon_id: currentSalonId,
+    new_salon_id: updates.newSalonId,
+    new_doctor_id: updates.newDoctorId,
+    count: surgeries.length,
+    patient_names: surgeries.map((s) => s.patient_name).join(", "),
+  })
+
+  console.log("[v0] Successfully reassigned", surgeries.length, "surgeries")
+
+  revalidatePath("/")
+  revalidatePath("/waiting-list")
+  revalidatePath("/fliphtml")
+  revalidatePath("/admin")
+
+  return { success: true, count: surgeries.length }
+}
+
+export const moveSurgeryToWaitingList = moveToWaitingList

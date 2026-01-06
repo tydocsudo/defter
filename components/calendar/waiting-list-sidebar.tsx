@@ -68,6 +68,7 @@ export function WaitingListSidebar({ salons, doctors, onDataChange, layout = "ve
       }
 
       const actualWaiting = data.filter((s: any) => !s.salon_id && !s.surgery_date)
+      actualWaiting.sort((a: any, b: any) => a.patient_name.localeCompare(b.patient_name, "tr"))
       setWaitingSurgeries(actualWaiting)
     } catch (error) {
       console.error("Error fetching waiting list:", error)
