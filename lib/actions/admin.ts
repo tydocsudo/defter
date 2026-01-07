@@ -158,6 +158,8 @@ export async function createDoctor(name: string) {
   const user = await getCurrentUser()
   if (!user?.is_admin) throw new Error("Unauthorized")
 
+  console.log("[v0] Creating doctor with name:", name)
+
   const supabase = createAdminClient()
 
   const { data, error } = await supabase.from("doctors").insert({ name }).select().maybeSingle()
@@ -166,6 +168,8 @@ export async function createDoctor(name: string) {
     console.error("[v0] Error creating doctor:", error)
     throw new Error(error.message)
   }
+
+  console.log("[v0] Doctor created successfully:", data)
 
   revalidatePath("/admin")
   revalidatePath("/")

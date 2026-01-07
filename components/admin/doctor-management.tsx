@@ -30,6 +30,8 @@ export function DoctorManagement({ doctors }: DoctorManagementProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  console.log("[v0] DoctorManagement component - doctors prop:", doctors.length, doctors)
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
@@ -38,11 +40,16 @@ export function DoctorManagement({ doctors }: DoctorManagementProps) {
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
 
+    console.log("[v0] Creating doctor with name:", name)
+
     try {
-      await createDoctor(name)
+      const result = await createDoctor(name)
+      console.log("[v0] Doctor created, result:", result)
       setIsDialogOpen(false)
       ;(e.target as HTMLFormElement).reset()
+      window.location.reload()
     } catch (err: any) {
+      console.error("[v0] Error creating doctor:", err)
       setError(err.message || "Hoca eklenirken bir hata oluştu")
     } finally {
       setIsLoading(false)
