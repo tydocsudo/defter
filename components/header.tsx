@@ -1,17 +1,10 @@
-import { getCurrentUser, logout } from "@/lib/actions/auth"
+import { getCurrentUser } from "@/lib/actions/auth"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { User, LogOut, Settings, Home, BookOpen, Clock } from "lucide-react"
+import { Settings, Home, BookOpen, Clock, CalendarClock } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { UserProfileMenu } from "@/components/user-profile-menu"
 
 export async function Header() {
   const user = await getCurrentUser()
@@ -43,6 +36,12 @@ export async function Header() {
               <span className="hidden sm:inline">Bekleme</span>
             </Button>
           </Link>
+          <Link href="/bulk-operations">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <CalendarClock className="h-4 w-4" />
+              <span className="hidden sm:inline">Toplu İşlemler</span>
+            </Button>
+          </Link>
         </div>
         <div className="flex items-center gap-2 md:gap-4">
           <ThemeToggle />
@@ -54,40 +53,7 @@ export async function Header() {
               </Button>
             </Link>
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                <User className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {user?.first_name} {user?.last_name}
-                </span>
-                {user?.is_admin && (
-                  <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
-                    Admin
-                  </span>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">
-                    {user?.first_name} {user?.last_name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">@{user?.username}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <form action={logout}>
-                <DropdownMenuItem asChild>
-                  <button type="submit" className="w-full flex items-center gap-2 cursor-pointer">
-                    <LogOut className="h-4 w-4" />
-                    Çıkış Yap
-                  </button>
-                </DropdownMenuItem>
-              </form>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {user && <UserProfileMenu user={user} />}
         </div>
       </div>
     </header>
