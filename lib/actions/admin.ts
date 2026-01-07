@@ -105,6 +105,8 @@ export async function createSalon(name: string) {
   const user = await getCurrentUser()
   if (!user?.is_admin) throw new Error("Unauthorized")
 
+  console.log("[v0] Creating salon with name:", name) // Added debug logging
+
   const supabase = createAdminClient()
 
   // Get max order_index
@@ -129,6 +131,8 @@ export async function createSalon(name: string) {
     console.error("[v0] Error creating salon:", error)
     throw new Error(error.message)
   }
+
+  console.log("[v0] Salon created successfully:", data) // Added debug logging
 
   revalidatePath("/admin")
   revalidatePath("/")

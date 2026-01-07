@@ -11,6 +11,9 @@ import { DoctorAssignmentsManagement } from "@/components/admin/doctor-assignmen
 import { BackupManagement } from "@/components/admin/backup-management"
 import { BulkOperations } from "@/components/admin/bulk-operations"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 export default async function AdminPage() {
   const user = await getCurrentUser()
 
@@ -33,11 +36,25 @@ export default async function AdminPage() {
     count: usersRes.data?.length,
   })
 
+  console.log("[v0] Admin page - salons fetch result:", {
+    data: salonsRes.data,
+    error: salonsRes.error,
+    count: salonsRes.data?.length,
+  })
+
+  console.log("[v0] Admin page - doctors fetch result:", {
+    data: doctorsRes.data,
+    error: doctorsRes.error,
+    count: doctorsRes.data?.length,
+  })
+
   const users = usersRes.data || []
   const salons = salonsRes.data || []
   const doctors = doctorsRes.data || []
 
   console.log("[v0] Admin page - passing users to component:", users.length)
+  console.log("[v0] Admin page - passing salons to component:", salons.length)
+  console.log("[v0] Admin page - passing doctors to component:", doctors.length)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
@@ -49,14 +66,22 @@ export default async function AdminPage() {
         </div>
 
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7 lg:w-auto dark:bg-slate-800">
+          <TabsList className="grid grid-cols-3 md:grid-cols-7 w-full lg:w-auto dark:bg-slate-800 overflow-x-auto">
             <TabsTrigger value="users">Kullanıcılar</TabsTrigger>
             <TabsTrigger value="salons">Salonlar</TabsTrigger>
             <TabsTrigger value="doctors">Hocalar</TabsTrigger>
-            <TabsTrigger value="assignments">Hoca Atamaları</TabsTrigger>
-            <TabsTrigger value="bulk">Toplu İşlemler</TabsTrigger>
-            <TabsTrigger value="logs">İşlem Geçmişi</TabsTrigger>
-            <TabsTrigger value="backup">Yedekleme</TabsTrigger>
+            <TabsTrigger value="assignments" className="hidden md:flex">
+              Hoca Atamaları
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="hidden md:flex">
+              Toplu İşlemler
+            </TabsTrigger>
+            <TabsTrigger value="logs" className="hidden md:flex">
+              İşlem Geçmişi
+            </TabsTrigger>
+            <TabsTrigger value="backup" className="hidden md:flex">
+              Yedekleme
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
