@@ -85,7 +85,13 @@ export function SurgeryForm({
     if (assignmentType === "salon") {
       const formData = new FormData(e.currentTarget)
       const selectedDate = formData.get("surgery_date") as string
-      if (selectedDate && isWeekend(selectedDate)) {
+
+      if (!selectedDate || selectedDate.trim() === "") {
+        setError("Salona atarken ameliyat tarihi zorunludur")
+        return
+      }
+
+      if (isWeekend(selectedDate)) {
         setError("Cumartesi ve Pazar günleri ameliyat yapılamaz")
         return
       }
@@ -216,9 +222,10 @@ export function SurgeryForm({
         responsible_doctor_id: (formData.get("responsible_doctor_id") as string) || null,
         phone_number_1: formData.get("phone_number_1") as string,
         phone_number_2: formData.get("phone_number_2") as string,
-        salon_id: assignmentType === "waiting" ? null : (formData.get("salon_id") as string) || null,
-        surgery_date: assignmentType === "waiting" ? "" : (formData.get("surgery_date") as string),
+        salon_id: assignmentType === "waiting" ? null : (formData.get("salon_id") as string) || defaultSalonId || null,
+        surgery_date: assignmentType === "waiting" ? null : (formData.get("surgery_date") as string) || null,
         is_waiting_list: assignmentType === "waiting",
+        initial_note: formData.get("initial_note") as string,
       }
 
       console.log("[v0] Creating surgery with data:", surgeryData)
@@ -227,7 +234,7 @@ export function SurgeryForm({
 
       onOpenChange(false)
       ;(e.target as HTMLFormElement).reset()
-      setAssignmentType(isWaitingList ? "waiting" : "salon")
+      setAssignmentType(isWaitingList ? "waiting" : surgery ? (surgery.salon_id ? "salon" : "waiting") : "salon")
 
       window.dispatchEvent(new Event("calendarDataChanged"))
       window.dispatchEvent(new Event("waitingListChanged"))

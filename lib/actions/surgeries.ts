@@ -26,7 +26,7 @@ export async function createSurgery(formData: {
   phone_number_1: string
   phone_number_2: string
   salon_id: string | null
-  surgery_date: string
+  surgery_date: string | null
   is_waiting_list: boolean
   initial_note?: string
 }) {
@@ -34,6 +34,14 @@ export async function createSurgery(formData: {
   if (!user) throw new Error("Unauthorized")
 
   const supabase = createAdminClient()
+
+  let validSurgeryDate = null
+  if (!formData.is_waiting_list && formData.surgery_date) {
+    const dateStr = formData.surgery_date.trim()
+    if (dateStr && dateStr !== "") {
+      validSurgeryDate = dateStr
+    }
+  }
 
   const surgeryData = {
     patient_name: formData.patient_name,
@@ -44,7 +52,7 @@ export async function createSurgery(formData: {
     phone_number_1: formData.phone_number_1 || "",
     phone_number_2: formData.phone_number_2 || "",
     salon_id: formData.is_waiting_list ? null : formData.salon_id || null,
-    surgery_date: formData.is_waiting_list ? null : formData.surgery_date || null,
+    surgery_date: validSurgeryDate,
     is_waiting_list: formData.is_waiting_list,
     created_by: user.id,
     is_approved: false,
