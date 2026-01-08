@@ -83,6 +83,12 @@ export function FlipbookView({
   doctors: initialDoctors,
   initialDate,
 }: FlipbookViewProps) {
+  console.log("[v0] FlipbookView received surgeries:", {
+    count: surgeries.length,
+    dates: surgeries.map((s) => s.surgery_date),
+    salons: surgeries.map((s) => ({ id: s.salon_id, name: s.salon?.name })),
+  })
+
   const [selectedSalonId, setSelectedSalonId] = useState<string>("")
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date()
@@ -496,7 +502,18 @@ export function FlipbookView({
 
   const getSurgeriesForDay = (day: Date) => {
     const dateKey = format(day, "yyyy-MM-dd")
-    return surgeries.filter((surgery) => surgery.surgery_date === dateKey && surgery.salon_id === selectedSalonId)
+    const filtered = surgeries.filter(
+      (surgery) => surgery.surgery_date === dateKey && surgery.salon_id === selectedSalonId,
+    )
+    if (filtered.length > 0) {
+      console.log("[v0] getSurgeriesForDay:", {
+        day: dateKey,
+        selectedSalonId,
+        foundCount: filtered.length,
+        patientNames: filtered.map((s) => s.patient_name),
+      })
+    }
+    return filtered
   }
 
   const getDayNotesForDay = (day: Date) => {
@@ -519,7 +536,7 @@ export function FlipbookView({
       const safeDate = getSafeCurrentWeekStart()
       sessionStorage.setItem(
         "flipbook_scroll_target",
-        JSON.stringify({
+        JSON.JSON.stringify({
           date: format(safeDate, "yyyy-MM-dd"),
           salonId: selectedSalonId,
         }),

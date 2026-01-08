@@ -43,6 +43,10 @@ export async function createSurgery(formData: {
     }
   }
 
+  if (formData.salon_id && !validSurgeryDate) {
+    throw new Error("Salona atanan hastalar için ameliyat tarihi zorunludur")
+  }
+
   const surgeryData = {
     patient_name: formData.patient_name,
     protocol_number: formData.protocol_number,

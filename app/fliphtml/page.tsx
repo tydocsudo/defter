@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/auth"
-import { createServerClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { FlipbookView } from "@/components/flipbook/flipbook-view"
+
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export default async function FliphtmlPage({
   searchParams,
@@ -13,7 +16,9 @@ export default async function FliphtmlPage({
     redirect("/login")
   }
 
-  const supabase = await createServerClient()
+  const supabase = createAdminClient()
+
+  console.log("[v0] Fliphtml - fetching ALL surgeries (no salon filter)")
 
   const { data: salons } = await supabase.from("salons").select("*").order("order_index", { ascending: true })
 
@@ -34,6 +39,20 @@ export default async function FliphtmlPage({
     .order("surgery_date", { ascending: true })
 
   const { data: dayNotes } = await supabase.from("day_notes").select("*").order("note_date", { ascending: true })
+
+  console.log("[v0] Fliphtml - fetched surgeries:", {
+    count: surgeries?.length || 0,
+    dates: surgeries?.map((s) => s.surgery_date) || [],
+    salons: surgeries?.map((s) => s.salon?.name) || [],
+    sample: surgeries?.[0]
+      ? {
+          patient_name: surgeries[0].patient_name,
+          surgery_date: surgeries[0].surgery_date,
+          salon_id: surgeries[0].salon_id,
+          is_waiting_list: surgeries[0].is_waiting_list,
+        }
+      : null,
+  })
 
   return (
     <main className="min-h-screen">

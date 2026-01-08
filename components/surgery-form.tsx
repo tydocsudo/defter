@@ -214,6 +214,15 @@ export function SurgeryForm({
     }
 
     try {
+      const surgeryDateValue =
+        assignmentType === "waiting" ? null : (formData.get("surgery_date") as string)?.trim() || null
+
+      if (assignmentType === "salon" && !surgeryDateValue) {
+        setError("Salona atarken ameliyat tarihi zorunludur")
+        setIsLoading(false)
+        return
+      }
+
       const surgeryData = {
         patient_name: formData.get("patient_name") as string,
         protocol_number: formData.get("protocol_number") as string,
@@ -223,7 +232,7 @@ export function SurgeryForm({
         phone_number_1: formData.get("phone_number_1") as string,
         phone_number_2: formData.get("phone_number_2") as string,
         salon_id: assignmentType === "waiting" ? null : (formData.get("salon_id") as string) || defaultSalonId || null,
-        surgery_date: assignmentType === "waiting" ? null : (formData.get("surgery_date") as string) || null,
+        surgery_date: surgeryDateValue,
         is_waiting_list: assignmentType === "waiting",
         initial_note: formData.get("initial_note") as string,
       }
