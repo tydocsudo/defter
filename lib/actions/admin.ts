@@ -68,7 +68,11 @@ export async function createUser(formData: {
 
 export async function updateUserPassword(userId: string, newPassword: string) {
   const user = await getCurrentUser()
-  if (!user?.is_admin) throw new Error("Unauthorized")
+
+  // Allow if user is admin OR if user is changing their own password
+  if (!user || (!user.is_admin && user.id !== userId)) {
+    throw new Error("Unauthorized")
+  }
 
   const supabase = createAdminClient()
 
@@ -80,6 +84,7 @@ export async function updateUserPassword(userId: string, newPassword: string) {
   }
 
   revalidatePath("/admin")
+  revalidatePath("/")
   return { success: true }
 }
 

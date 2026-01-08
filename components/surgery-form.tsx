@@ -478,6 +478,7 @@ export function SurgeryForm({
                         type="date"
                         defaultValue={surgery?.surgery_date || defaultDate}
                         disabled={isLoading}
+                        required={assignmentType === "salon"}
                         min={getMinDate()}
                         onChange={(e) => {
                           if (e.target.value && isWeekend(e.target.value)) {

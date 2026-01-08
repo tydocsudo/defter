@@ -253,7 +253,7 @@ export function MonthlyCalendar({
                     </button>
                   </div>
 
-                  {!assignedDoctor && isAdmin && (
+                  {!assignedDoctor && (
                     <Select onValueChange={(value) => handleDoctorAssign(day, value)} disabled={isAssigning}>
                       <SelectTrigger className="h-5 sm:h-6 text-[9px] sm:text-[10px] mb-0.5 sm:mb-1 border-dashed">
                         <SelectValue placeholder="Hoca" />

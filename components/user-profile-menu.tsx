@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { updateUserPassword } from "@/lib/actions/admin"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -24,7 +25,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { User, KeyRound, LogOut } from "lucide-react"
 import { logout } from "@/lib/actions/auth"
-import { updateUserPassword } from "@/lib/actions/admin"
 import type { Profile } from "@/lib/types"
 
 interface UserProfileMenuProps {
