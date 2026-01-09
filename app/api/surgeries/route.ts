@@ -10,13 +10,6 @@ export async function GET(request: NextRequest) {
   const endDate = searchParams.get("end_date")
   const isWaitingList = searchParams.get("is_waiting_list")
 
-  console.log("[v0] Surgery API called with params:", {
-    salonId,
-    startDate,
-    endDate,
-    isWaitingList,
-  })
-
   let query = supabase.from("surgeries").select(`
       *,
       responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name),
@@ -28,7 +21,6 @@ export async function GET(request: NextRequest) {
   if (isWaitingList === "true") {
     query = query.eq("is_waiting_list", true)
   } else {
-    // Default to false to show only scheduled surgeries
     query = query.eq("is_waiting_list", false)
   }
 
@@ -43,17 +35,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query.order("surgery_date", { ascending: true })
 
   if (error) {
-    console.error("[v0] Error fetching surgeries:", error)
     return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  console.log("[v0] Fetched surgeries from Supabase:", data?.length || 0)
-  if (data && data.length > 0) {
-    console.log("[v0] Sample surgery data:", {
-      count: data.length,
-      dates: data.slice(0, 3).map((s) => s.surgery_date),
-      salons: data.slice(0, 3).map((s) => s.salon?.name),
-    })
   }
 
   return NextResponse.json(data || [])

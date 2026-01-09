@@ -24,8 +24,6 @@ export default async function HomePage() {
   const salons = salonsRes.data || []
   const defaultSalonId = salons[0]?.id
 
-  console.log("[v0] Mainpage - fetching surgeries for salon:", defaultSalonId)
-
   const [doctorsRes, surgeriesRes, dayNotesRes] = await Promise.all([
     supabase.from("doctors").select("*").order("name"),
     supabase
@@ -48,12 +46,6 @@ export default async function HomePage() {
   const doctors = doctorsRes.data || []
   const surgeries = surgeriesRes.data || []
   const dayNotes = dayNotesRes.data || []
-
-  console.log("[v0] Mainpage - fetched surgeries:", {
-    count: surgeries.length,
-    dates: surgeries.map((s) => s.surgery_date),
-    salons: surgeries.map((s) => s.salon?.name),
-  })
 
   return (
     <div className="min-h-screen bg-background">

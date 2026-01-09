@@ -45,8 +45,6 @@ export function MonthlyView({
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     try {
-      console.log("[v0] Client-side fetching ALL data for salon:", selectedSalon)
-
       const [surgeriesRes, notesRes, doctorsRes] = await Promise.all([
         fetch(`/api/surgeries?salon_id=${selectedSalon}&is_waiting_list=false`),
         fetch(`/api/day-notes?salon_id=${selectedSalon}`),
@@ -61,7 +59,7 @@ export function MonthlyView({
         try {
           surgeriesData = await surgeriesRes.json()
         } catch (error) {
-          console.error("[v0] Error parsing surgeries:", error)
+          // Skip parse errors
         }
       }
 
@@ -69,7 +67,7 @@ export function MonthlyView({
         try {
           notesData = await notesRes.json()
         } catch (error) {
-          console.error("[v0] Error parsing notes:", error)
+          // Skip parse errors
         }
       }
 
@@ -77,7 +75,7 @@ export function MonthlyView({
         try {
           doctorsData = await doctorsRes.json()
         } catch (error) {
-          console.error("[v0] Error parsing doctors:", error)
+          // Skip parse errors
         }
       }
 
@@ -85,7 +83,7 @@ export function MonthlyView({
       setDayNotes(notesData)
       setAssignedDoctors(doctorsData)
     } catch (error) {
-      console.error("[v0] Error fetching data:", error)
+      // Skip fetch errors
     } finally {
       setIsLoading(false)
     }

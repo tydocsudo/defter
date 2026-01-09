@@ -14,7 +14,6 @@ export async function verifyCredentials(username: string, password: string): Pro
   try {
     const adminClient = getAdminClient()
 
-    // Fetch user with password from database
     const { data: profile, error: profileError } = await adminClient
       .from("profiles")
       .select("id, username, first_name, last_name, is_admin, password")
@@ -22,13 +21,10 @@ export async function verifyCredentials(username: string, password: string): Pro
       .maybeSingle()
 
     if (profileError || !profile) {
-      console.log("[v0] Profile not found for username:", username)
       return null
     }
 
-    // Simple password comparison
     if (profile.password !== password) {
-      console.log("[v0] Password mismatch")
       return null
     }
 
@@ -40,7 +36,6 @@ export async function verifyCredentials(username: string, password: string): Pro
       is_admin: profile.is_admin,
     }
   } catch (error) {
-    console.error("[v0] Error verifying credentials:", error)
     return null
   }
 }
@@ -105,7 +100,6 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
       is_admin: profile.is_admin,
     }
   } catch (error) {
-    console.error("[v0] Error getting current user:", error)
     return null
   }
 })

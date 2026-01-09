@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Check, Users } from "lucide-react"
+import { Check, Users, UserCheck, UserX } from "lucide-react"
 import { format } from "date-fns"
 import { tr } from "date-fns/locale"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +23,7 @@ interface AvailableSlot {
   currentPatientCount: number
   maxCapacity: number
   patients: Patient[]
+  doctorAssigned?: boolean // Added doctorAssigned field
 }
 
 interface AvailableSlotsDialogProps {
@@ -72,6 +73,26 @@ export function AvailableSlotsDialog({ slots, onSelectSlot, isLoading }: Availab
                     <p className="text-sm opacity-90">{format(slotDate, "d MMMM yyyy", { locale: tr })}</p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {slot.doctorAssigned !== undefined && (
+                      <Badge
+                        variant="secondary"
+                        className={
+                          slot.doctorAssigned ? "bg-green-500/20 text-green-100" : "bg-orange-500/20 text-orange-100"
+                        }
+                      >
+                        {slot.doctorAssigned ? (
+                          <>
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Hoca Atanmış
+                          </>
+                        ) : (
+                          <>
+                            <UserX className="h-3 w-3 mr-1" />
+                            Boş Salon
+                          </>
+                        )}
+                      </Badge>
+                    )}
                     <Badge variant="secondary" className="bg-white/20 text-white">
                       <Users className="h-3 w-3 mr-1" />
                       {slot.currentPatientCount}/{slot.maxCapacity}
@@ -90,7 +111,11 @@ export function AvailableSlotsDialog({ slots, onSelectSlot, isLoading }: Availab
                 {slot.patients.length === 0 ? (
                   <div className="text-center text-muted-foreground py-4">
                     <p className="text-sm">Bu günde henüz ameliyat yok</p>
-                    <p className="text-xs mt-1">İlk hasta olarak bu tarihi seçebilirsiniz</p>
+                    <p className="text-xs mt-1">
+                      {slot.doctorAssigned
+                        ? "Hoca atanmış, ilk hasta olarak bu tarihi seçebilirsiniz"
+                        : "Salon boş, bu tarihi seçerek hoca ataması yapılabilir"}
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">

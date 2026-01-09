@@ -26,8 +26,6 @@ interface SalonManagementProps {
 }
 
 export function SalonManagement({ salons }: SalonManagementProps) {
-  console.log("[v0] SalonManagement component - salons prop:", salons.length, salons) // Added debug logging to see what salons are received
-
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,16 +38,12 @@ export function SalonManagement({ salons }: SalonManagementProps) {
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
 
-    console.log("[v0] Submitting salon creation with name:", name) // Added debug logging
-
     try {
-      const result = await createSalon(name) // Store result
-      console.log("[v0] Salon created successfully, result:", result) // Added debug logging
+      await createSalon(name)
       setIsDialogOpen(false)
       ;(e.target as HTMLFormElement).reset()
-      window.location.reload() // Force page reload to show new salon
+      window.location.reload()
     } catch (err: any) {
-      console.error("[v0] Error in handleSubmit:", err) // Added debug logging
       setError(err.message || "Salon eklenirken bir hata oluştu")
     } finally {
       setIsLoading(false)

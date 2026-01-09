@@ -57,14 +57,12 @@ function formatActivityDetails(log: ActivityLogWithSurgery): string {
 
     switch (log.action) {
       case "Hasta Eklendi":
-        // Show nothing extra - patient name is already in its own column
         break
 
       case "Hasta Güncellendi":
         if (details.changes && typeof details.changes === "object") {
           const changesList: string[] = []
 
-          // Map field names to Turkish
           const fieldNames: Record<string, string> = {
             patient_name: "Hasta Adı",
             protocol_number: "Protokol No",
@@ -81,7 +79,6 @@ function formatActivityDetails(log: ActivityLogWithSurgery): string {
               const oldVal = value?.old || "-"
               const newVal = value?.new || "-"
 
-              // Format dates properly
               if (key === "surgery_date") {
                 const formattedOld = oldVal !== "-" ? formatDateDDMMYYYY(oldVal) : "-"
                 const formattedNew = newVal !== "-" ? formatDateDDMMYYYY(newVal) : "-"
@@ -90,7 +87,7 @@ function formatActivityDetails(log: ActivityLogWithSurgery): string {
                 changesList.push(`${fieldName}: ${oldVal} → ${newVal}`)
               }
             } catch (err) {
-              console.error("[v0] Error formatting change detail:", err)
+              // Skip formatting errors
             }
           })
 
@@ -114,7 +111,7 @@ function formatActivityDetails(log: ActivityLogWithSurgery): string {
           try {
             parts.push(`Eski tarih: ${formatDateDDMMYYYY(details.old_surgery_date)}`)
           } catch (err) {
-            console.error("[v0] Error formatting old surgery date:", err)
+            // Skip formatting errors
           }
         }
         break
@@ -127,7 +124,7 @@ function formatActivityDetails(log: ActivityLogWithSurgery): string {
           try {
             parts.push(`Tarih: ${formatDateDDMMYYYY(details.surgery_date)}`)
           } catch (err) {
-            console.error("[v0] Error formatting surgery date:", err)
+            // Skip formatting errors
           }
         }
         break
@@ -138,7 +135,6 @@ function formatActivityDetails(log: ActivityLogWithSurgery): string {
 
     return parts.length > 0 ? parts.join(" | ") : "-"
   } catch (error) {
-    console.error("[v0] Error in formatActivityDetails:", error)
     return "-"
   }
 }
@@ -159,14 +155,11 @@ export function ActivityLogs() {
     async function fetchLogs() {
       setIsLoading(true)
       try {
-        console.log("[v0] ActivityLogs: Fetching logs for page", currentPage, "with pageSize", pageSize)
         const offset = (currentPage - 1) * pageSize
         const [data, count] = await Promise.all([getActivityLogs(pageSize, offset), getActivityLogsCount()])
-        console.log("[v0] ActivityLogs: Received", data.length, "logs, total count:", count)
         setLogs(data as any)
         setTotalCount(count)
       } catch (error) {
-        console.error("[v0] ActivityLogs: Failed to fetch activity logs:", error)
         setLogs([])
         setTotalCount(0)
       } finally {
@@ -186,7 +179,6 @@ export function ActivityLogs() {
     setIsClearing(true)
     try {
       await deleteActivityLogsByDateRange(startDate, endDate)
-      // Refresh logs
       const offset = (currentPage - 1) * pageSize
       const [data, count] = await Promise.all([getActivityLogs(pageSize, offset), getActivityLogsCount()])
       setLogs(data as any)
@@ -195,7 +187,6 @@ export function ActivityLogs() {
       setStartDate("")
       setEndDate("")
     } catch (error) {
-      console.error("[v0] Error clearing logs:", error)
       alert("Loglar silinirken hata oluştu")
     } finally {
       setIsClearing(false)
@@ -210,7 +201,6 @@ export function ActivityLogs() {
       setTotalCount(0)
       setCurrentPage(1)
     } catch (error) {
-      console.error("[v0] Error clearing all logs:", error)
       alert("Loglar silinirken hata oluştu")
     } finally {
       setIsClearing(false)
@@ -361,7 +351,6 @@ export function ActivityLogs() {
                       </TableRow>
                     )
                   } catch (error) {
-                    console.error("[v0] Error rendering log row:", log.id, error)
                     return (
                       <TableRow key={log.id}>
                         <TableCell colSpan={6} className="text-center text-red-500">

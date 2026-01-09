@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { addDays, format, startOfDay } from "date-fns"
 import { tr } from "date-fns/locale"
 
@@ -17,15 +17,16 @@ interface AvailableSlot {
     indication: string
     responsible_doctor: { name: string } | null
   }>
+  doctorAssigned: boolean
 }
 
 export async function findAvailableDates(
   salonId: string,
   doctorId: string,
-  patientId: string,
+  patientId: string | null,
 ): Promise<{ success: boolean; slots?: AvailableSlot[]; error?: string }> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Get salon info for capacity rules
     const { data: salon } = await supabase.from("salons").select("name").eq("id", salonId).single()
@@ -40,13 +41,18 @@ export async function findAvailableDates(
     const today = startOfDay(new Date())
     const endDate = addDays(today, 90)
 
-    const { data: doctorAssignments } = await supabase
+    const { data: doctorAssignments, error: assignmentError } = await supabase
       .from("daily_assigned_doctors")
       .select("assigned_date")
       .eq("doctor_id", doctorId)
       .eq("salon_id", salonId)
       .gte("assigned_date", format(today, "yyyy-MM-dd"))
       .lte("assigned_date", format(endDate, "yyyy-MM-dd"))
+
+    if (assignmentError) {
+      console.error("Error fetching doctor assignments:", assignmentError)
+      return { success: false, error: "Hoca atamaları alınırken hata oluştu" }
+    }
 
     const assignedDates = new Set(doctorAssignments?.map((a) => a.assigned_date) || [])
 
@@ -66,11 +72,12 @@ export async function findAvailableDates(
       )
       .eq("salon_id", salonId)
       .eq("is_waiting_list", false)
+      .not("surgery_date", "is", null)
       .gte("surgery_date", format(today, "yyyy-MM-dd"))
       .lte("surgery_date", format(endDate, "yyyy-MM-dd"))
 
     if (error) {
-      console.error("[v0] Error fetching surgeries for auto-scheduler:", error)
+      console.error("Error fetching surgeries for auto-scheduler:", error)
       return { success: false, error: "Ameliyatlar alınırken hata oluştu" }
     }
 
@@ -83,7 +90,6 @@ export async function findAvailableDates(
       surgeryCountByDate[surgery.surgery_date].push(surgery)
     })
 
-    // Find available dates (where count <= maxCapacity)
     const availableSlots: AvailableSlot[] = []
     let currentDate = today
 
@@ -91,17 +97,20 @@ export async function findAvailableDates(
       const dateStr = format(currentDate, "yyyy-MM-dd")
       const dayOfWeek = currentDate.getDay()
 
-      if (dayOfWeek !== 0 && dayOfWeek !== 6 && assignedDates.has(dateStr)) {
+      // Skip weekends
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
         const patientsOnDate = surgeryCountByDate[dateStr] || []
         const patientCount = patientsOnDate.length
+        const isDoctorAssigned = assignedDates.has(dateStr)
 
-        if (patientCount < maxCapacity) {
+        if (isDoctorAssigned && patientCount < maxCapacity) {
           availableSlots.push({
             date: dateStr,
             dayName: format(currentDate, "EEEE", { locale: tr }),
             currentPatientCount: patientCount,
             maxCapacity: maxCapacity,
             patients: patientsOnDate,
+            doctorAssigned: true,
           })
         }
       }
@@ -109,16 +118,12 @@ export async function findAvailableDates(
       currentDate = addDays(currentDate, 1)
     }
 
-    console.log(
-      `[v0] Found ${availableSlots.length} available slots for salon ${salon.name} (max capacity: ${maxCapacity})`,
-    )
-
     return {
       success: true,
       slots: availableSlots.slice(0, 5), // Return first 5
     }
   } catch (error: any) {
-    console.error("[v0] Auto-scheduler error:", error)
+    console.error("Auto-scheduler error:", error)
     return { success: false, error: error.message }
   }
 }

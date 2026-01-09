@@ -28,8 +28,6 @@ interface UserManagementProps {
 }
 
 export function UserManagement({ users }: UserManagementProps) {
-  console.log("[v0] UserManagement component - users prop:", users.length, users)
-
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)

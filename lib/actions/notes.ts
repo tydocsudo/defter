@@ -15,17 +15,14 @@ export async function createSurgeryNote(surgeryId: string, note: string) {
     .insert({
       surgery_id: surgeryId,
       note,
-      created_by: null, // null since mock user doesn't exist in DB
+      created_by: null,
     })
     .select()
     .single()
 
   if (error) {
-    console.error("[v0] Error creating surgery note:", error)
     throw new Error(error.message)
   }
-
-  console.log("[v0] Created surgery note:", data)
 
   revalidatePath("/")
   return { success: true, data }
@@ -40,7 +37,6 @@ export async function deleteSurgeryNote(noteId: string) {
   const { error } = await supabase.from("surgery_notes").delete().eq("id", noteId)
 
   if (error) {
-    console.error("[v0] Error deleting surgery note:", error)
     throw new Error(error.message)
   }
 
@@ -58,8 +54,6 @@ export async function createDayNote(salonId: string, noteDate: string, note: str
     throw new Error("Salon ID is required")
   }
 
-  console.log("[v0] Creating day note with data:", { salonId, noteDate, note })
-
   const { data, error } = await supabase
     .from("day_notes")
     .insert({
@@ -72,11 +66,8 @@ export async function createDayNote(salonId: string, noteDate: string, note: str
     .single()
 
   if (error) {
-    console.error("[v0] Error creating day note - Full error:", JSON.stringify(error, null, 2))
     throw new Error(`Database error: ${error.message} (Code: ${error.code})`)
   }
-
-  console.log("[v0] Created day note successfully:", data)
 
   revalidatePath("/")
   revalidatePath("/fliphtml")
@@ -92,7 +83,6 @@ export async function deleteDayNote(noteId: string) {
   const { error } = await supabase.from("day_notes").delete().eq("id", noteId)
 
   if (error) {
-    console.error("[v0] Error deleting day note:", error)
     throw new Error(error.message)
   }
 
@@ -125,11 +115,8 @@ export async function assignDoctorToDay(salonId: string, doctorId: string, assig
     .single()
 
   if (error) {
-    console.error("[v0] Error assigning doctor:", error)
     throw new Error(error.message)
   }
-
-  console.log("[v0] Assigned doctor to day:", data)
 
   revalidatePath("/")
   return { success: true, data }
@@ -144,7 +131,6 @@ export async function removeAssignedDoctor(assignmentId: string) {
   const { error } = await supabase.from("daily_assigned_doctors").delete().eq("id", assignmentId)
 
   if (error) {
-    console.error("[v0] Error removing doctor assignment:", error)
     throw new Error(error.message)
   }
 

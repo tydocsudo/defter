@@ -289,7 +289,7 @@ export function FlipbookView({
   const getSafeCurrentWeekStart = useCallback(() => {
     if (!isValid(currentWeekStart)) {
       const today = new Date()
-      return startOfWeek(today, { weekStartsOn: 1 })
+      return startOfWeek(new Date(Date.now()), { weekStartsOn: 1 })
     }
     return currentWeekStart
   }, [currentWeekStart])
@@ -548,9 +548,10 @@ export function FlipbookView({
 
       // Save current view state before reload
       const safeDate = getSafeCurrentWeekStart()
+      // </CHANGE> Fixed typo: JSON.JSON.stringify -> JSON.stringify
       sessionStorage.setItem(
         "flipbook_scroll_target",
-        JSON.JSON.stringify({
+        JSON.stringify({
           date: format(safeDate, "yyyy-MM-dd"),
           salonId: selectedSalonId,
         }),
