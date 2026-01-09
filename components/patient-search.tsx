@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { tr } from "date-fns/locale"
-import { createBrowserClient } from "@/lib/supabase/client"
 
 interface Surgery {
   id: string
@@ -40,42 +39,27 @@ export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Search patients when query changes
   useEffect(() => {
     const searchPatients = async () => {
       if (searchQuery.length < 2) {
         setSearchResults([])
+        setIsOpen(false)
         return
       }
 
       setIsSearching(true)
+      setIsOpen(true)
       try {
-        const supabase = createBrowserClient()
-        const { data, error } = await supabase
-          .from("surgeries")
-          .select(`
-            id,
-            patient_name,
-            protocol_number,
-            indication,
-            surgery_date,
-            salon_id,
-            salon:salons(id, name)
-          `)
-          .eq("is_waiting_list", false)
-          .not("surgery_date", "is", null)
-          .or(
-            `patient_name.ilike.%${searchQuery}%,protocol_number.ilike.%${searchQuery}%,indication.ilike.%${searchQuery}%`,
-          )
-          .order("surgery_date", { ascending: false })
-          .limit(10)
-
-        if (!error && data) {
-          setSearchResults(data as Surgery[])
-          setIsOpen(true)
+        const response = await fetch(`/api/patients/search?q=${encodeURIComponent(searchQuery)}`)
+        if (response.ok) {
+          const data = await response.json()
+          setSearchResults(data)
+        } else {
+          setSearchResults([])
         }
       } catch (error) {
         console.error("[v0] Error searching patients:", error)
+        setSearchResults([])
       } finally {
         setIsSearching(false)
       }
@@ -122,9 +106,9 @@ export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
         </div>
       </div>
 
-      {/* Search Results Dropdown */}
+      {/* Search Results Dropdown - fixed mobile overflow */}
       {isOpen && searchResults.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 w-[320px] bg-white rounded-lg shadow-xl border z-50 max-h-[400px] overflow-auto">
+        <div className="absolute top-full mt-1 bg-white rounded-lg shadow-xl border z-50 max-h-[400px] overflow-y-auto left-0 w-[280px] sm:w-[320px] max-w-[calc(100vw-2rem)]">
           {searchResults.map((surgery) => (
             <button
               key={surgery.id}
@@ -139,7 +123,7 @@ export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
                     <p className="text-xs text-slate-500">Protokol: {surgery.protocol_number}</p>
                   )}
                   {surgery.indication && <p className="text-xs text-slate-600 truncate">{surgery.indication}</p>}
-                  <div className="flex items-center gap-3 mt-1">
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
                     {surgery.surgery_date && (
                       <div className="flex items-center gap-1 text-xs text-blue-600">
                         <Calendar className="h-3 w-3" />
@@ -162,14 +146,14 @@ export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
 
       {/* No results message */}
       {isOpen && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
-        <div className="absolute top-full left-0 mt-1 w-[280px] bg-white rounded-lg shadow-xl border z-50 p-4 text-center text-slate-500 text-sm">
+        <div className="absolute top-full mt-1 bg-white rounded-lg shadow-xl border z-50 p-4 text-center text-slate-500 text-sm left-0 w-[280px] max-w-[calc(100vw-2rem)]">
           Hasta bulunamadı
         </div>
       )}
 
       {/* Loading state */}
       {isSearching && (
-        <div className="absolute top-full left-0 mt-1 w-[280px] bg-white rounded-lg shadow-xl border z-50 p-4 text-center text-slate-500 text-sm">
+        <div className="absolute top-full mt-1 bg-white rounded-lg shadow-xl border z-50 p-4 text-center text-slate-500 text-sm left-0 w-[280px] max-w-[calc(100vw-2rem)]">
           Aranıyor...
         </div>
       )}

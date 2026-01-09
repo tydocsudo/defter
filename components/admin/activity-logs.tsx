@@ -2,14 +2,41 @@
 
 import { useEffect, useState } from "react"
 import type { ActivityLog } from "@/lib/types"
-import { getActivityLogs, getActivityLogsCount } from "@/lib/actions/admin"
+import {
+  getActivityLogs,
+  getActivityLogsCount,
+  deleteActivityLogsByDateRange,
+  deleteAllActivityLogs,
+} from "@/lib/actions/admin"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ChevronLeft, ChevronRight, Trash2, AlertTriangle } from "lucide-react"
 import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from "@/lib/utils/date-formatter"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 type ActivityLogWithSurgery = ActivityLog & {
   surgery?: {
@@ -123,6 +150,11 @@ export function ActivityLogs() {
   const [pageSize, setPageSize] = useState(20)
   const [totalCount, setTotalCount] = useState(0)
 
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [isClearing, setIsClearing] = useState(false)
+  const [clearDialogOpen, setClearDialogOpen] = useState(false)
+
   useEffect(() => {
     async function fetchLogs() {
       setIsLoading(true)
@@ -145,13 +177,130 @@ export function ActivityLogs() {
     fetchLogs()
   }, [currentPage, pageSize])
 
+  const handleClearByDateRange = async () => {
+    if (!startDate || !endDate) {
+      alert("Lütfen başlangıç ve bitiş tarihlerini seçin")
+      return
+    }
+
+    setIsClearing(true)
+    try {
+      await deleteActivityLogsByDateRange(startDate, endDate)
+      // Refresh logs
+      const offset = (currentPage - 1) * pageSize
+      const [data, count] = await Promise.all([getActivityLogs(pageSize, offset), getActivityLogsCount()])
+      setLogs(data as any)
+      setTotalCount(count)
+      setClearDialogOpen(false)
+      setStartDate("")
+      setEndDate("")
+    } catch (error) {
+      console.error("[v0] Error clearing logs:", error)
+      alert("Loglar silinirken hata oluştu")
+    } finally {
+      setIsClearing(false)
+    }
+  }
+
+  const handleClearAllLogs = async () => {
+    setIsClearing(true)
+    try {
+      await deleteAllActivityLogs()
+      setLogs([])
+      setTotalCount(0)
+      setCurrentPage(1)
+    } catch (error) {
+      console.error("[v0] Error clearing all logs:", error)
+      alert("Loglar silinirken hata oluştu")
+    } finally {
+      setIsClearing(false)
+    }
+  }
+
   const totalPages = Math.ceil(totalCount / pageSize)
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>İşlem Geçmişi</CardTitle>
-        <CardDescription>Sistemde yapılan tüm değişiklikleri görüntüleyin</CardDescription>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <CardTitle>İşlem Geçmişi</CardTitle>
+            <CardDescription>Sistemde yapılan tüm değişiklikleri görüntüleyin</CardDescription>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Tarih Aralığı Sil
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Tarih Aralığına Göre Logları Sil</DialogTitle>
+                  <DialogDescription>
+                    Seçtiğiniz tarih aralığındaki tüm loglar kalıcı olarak silinecektir.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="startDate">Başlangıç Tarihi</Label>
+                    <Input
+                      id="startDate"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="endDate">Bitiş Tarihi</Label>
+                    <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setClearDialogOpen(false)}>
+                    İptal
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleClearByDateRange}
+                    disabled={isClearing || !startDate || !endDate}
+                  >
+                    {isClearing ? "Siliniyor..." : "Logları Sil"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Tüm Logları Sil
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Tüm Logları Silmek İstediğinize Emin Misiniz?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Bu işlem geri alınamaz. Tüm işlem geçmişi kalıcı olarak silinecektir.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>İptal</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleClearAllLogs}
+                    disabled={isClearing}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {isClearing ? "Siliniyor..." : "Evet, Tümünü Sil"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (

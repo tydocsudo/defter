@@ -128,6 +128,7 @@ export function FlipbookView({
   const [pendingDoctorId, setPendingDoctorId] = useState<string | null>(null)
   const [filteredDates, setFilteredDates] = useState<Date[]>([])
   const [filterMode, setFilterMode] = useState(false)
+  const [filteredDatePage, setFilteredDatePage] = useState(0)
 
   useEffect(() => {
     if (salons.length > 0 && !selectedSalonId) {
@@ -209,6 +210,7 @@ export function FlipbookView({
   useEffect(() => {
     if (!filterMode || !filterDoctorId || filterSalonIds.length === 0) {
       setFilteredDates([])
+      setFilteredDatePage(0)
       return
     }
 
@@ -261,6 +263,8 @@ export function FlipbookView({
 
         setFilteredDates(uniqueDates)
 
+        setFilteredDatePage(0)
+
         // Jump to first filtered date if available
         if (uniqueDates.length > 0) {
           const firstDate = uniqueDates[0]
@@ -297,9 +301,9 @@ export function FlipbookView({
       return eachDayOfInterval({ start: safeWeekStart, end: addDays(safeWeekStart, 4) }) // Mon-Fri
     }
 
-    // Find the next 5 filtered dates starting from current position
-    const currentTime = safeWeekStart.getTime()
-    const nextDates = filteredDates.filter((d) => isValid(d) && d.getTime() >= currentTime).slice(0, 5)
+    // Get 5 dates starting from current page
+    const startIndex = filteredDatePage * 5
+    const nextDates = filteredDates.slice(startIndex, startIndex + 5)
 
     if (nextDates.length === 0) {
       return eachDayOfInterval({ start: safeWeekStart, end: addDays(safeWeekStart, 4) }) // Mon-Fri
@@ -310,7 +314,9 @@ export function FlipbookView({
 
   const weekDays = getFilteredWeekDays()
   const safeWeekStart = getSafeCurrentWeekStart()
-  const weekEnd = addDays(safeWeekStart, 4)
+
+  const weekEnd = filterMode && weekDays.length > 0 ? weekDays[weekDays.length - 1] : addDays(safeWeekStart, 4)
+
   const weekSurgeries = surgeries.filter((s) => {
     if (!s.surgery_date) return false
     const surgeryDate = new Date(s.surgery_date)
@@ -344,12 +350,16 @@ export function FlipbookView({
       return
     }
 
-    const currentTime = currentWeekStart.getTime()
-    const currentIndex = filteredDates.findIndex((d) => d.getTime() >= currentTime)
-    const nextIndex = currentIndex + 5
+    const nextPage = filteredDatePage + 1
+    const startIndex = nextPage * 5
 
-    if (nextIndex < filteredDates.length) {
-      setCurrentWeekStart(startOfWeek(filteredDates[nextIndex], { weekStartsOn: 1 }))
+    if (startIndex < filteredDates.length) {
+      setFilteredDatePage(nextPage)
+      // Update currentWeekStart to first date of next page
+      const nextDate = filteredDates[startIndex]
+      if (nextDate) {
+        setCurrentWeekStart(startOfWeek(nextDate, { weekStartsOn: 1 }))
+      }
     }
   }
 
@@ -359,11 +369,15 @@ export function FlipbookView({
       return
     }
 
-    const currentTime = currentWeekStart.getTime()
-    const currentIndex = filteredDates.findIndex((d) => d.getTime() >= currentTime)
-    const prevIndex = Math.max(0, currentIndex - 5)
+    const prevPage = Math.max(0, filteredDatePage - 1)
+    setFilteredDatePage(prevPage)
 
-    setCurrentWeekStart(startOfWeek(filteredDates[prevIndex], { weekStartsOn: 1 }))
+    // Update currentWeekStart to first date of previous page
+    const prevIndex = prevPage * 5
+    const prevDate = filteredDates[prevIndex]
+    if (prevDate) {
+      setCurrentWeekStart(startOfWeek(prevDate, { weekStartsOn: 1 }))
+    }
   }
 
   const jumpToDate = useCallback((date: Date) => {
@@ -654,12 +668,17 @@ export function FlipbookView({
                   size="icon"
                   onClick={prevFilteredWeek}
                   className="bg-white/10 border-white/20 hover:bg-white/20 text-white dark:text-slate-100 h-8 w-8 md:h-9 md:w-9"
-                  disabled={isFlipping}
+                  disabled={isFlipping || (filterMode && filteredDatePage === 0)}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <div className="text-xs md:text-sm text-center font-semibold whitespace-nowrap">
-                  {isValid(safeWeekStart) && isValid(weekEnd) ? (
+                  {filterMode && weekDays.length > 0 ? (
+                    <>
+                      {format(weekDays[0], "d MMM", { locale: tr })} -{" "}
+                      {format(weekDays[weekDays.length - 1], "d MMM yyyy", { locale: tr })}
+                    </>
+                  ) : isValid(safeWeekStart) && isValid(weekEnd) ? (
                     <>
                       {format(safeWeekStart, "d MMM", { locale: tr })} - {format(weekEnd, "d MMM yyyy", { locale: tr })}
                     </>
@@ -672,7 +691,7 @@ export function FlipbookView({
                   size="icon"
                   onClick={nextFilteredWeek}
                   className="bg-white/10 border-white/20 hover:bg-white/20 text-white dark:text-slate-100 h-8 w-8 md:h-9 md:w-9"
-                  disabled={isFlipping}
+                  disabled={isFlipping || (filterMode && (filteredDatePage + 1) * 5 >= filteredDates.length)}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>

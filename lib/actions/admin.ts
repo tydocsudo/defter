@@ -296,6 +296,44 @@ export async function getActivityLogsCount() {
   return count || 0
 }
 
+export async function deleteActivityLogsByDateRange(startDate: string, endDate: string) {
+  const user = await getCurrentUser()
+  if (!user?.is_admin) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+
+  const { error, count } = await supabase
+    .from("activity_logs")
+    .delete()
+    .gte("created_at", `${startDate}T00:00:00`)
+    .lte("created_at", `${endDate}T23:59:59`)
+
+  if (error) {
+    console.error("[v0] Error deleting activity logs by date range:", error)
+    throw new Error("Loglar silinirken hata oluştu: " + error.message)
+  }
+
+  revalidatePath("/admin")
+  return { success: true, deletedCount: count }
+}
+
+export async function deleteAllActivityLogs() {
+  const user = await getCurrentUser()
+  if (!user?.is_admin) throw new Error("Unauthorized")
+
+  const supabase = createAdminClient()
+
+  const { error } = await supabase.from("activity_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000") // Delete all rows
+
+  if (error) {
+    console.error("[v0] Error deleting all activity logs:", error)
+    throw new Error("Loglar silinirken hata oluştu: " + error.message)
+  }
+
+  revalidatePath("/admin")
+  return { success: true }
+}
+
 // Surgery Management
 export async function getSurgeryHistory(surgeryId: string) {
   const supabase = createAdminClient()
