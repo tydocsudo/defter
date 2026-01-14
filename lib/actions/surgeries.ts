@@ -528,24 +528,43 @@ export async function restoreFromBackup(
 
     for (const record of records) {
       try {
-        // Check if record exists based on unique fields
         let existingRecord = null
 
         if (table === "salons" && record.name) {
-          const { data } = await supabase.from("salons").select("id").eq("name", record.name).single()
+          const { data } = await supabase.from("salons").select("id").eq("name", record.name).maybeSingle()
           existingRecord = data
         } else if (table === "doctors" && record.name) {
-          const { data } = await supabase.from("doctors").select("id").eq("name", record.name).single()
+          const { data } = await supabase.from("doctors").select("id").eq("name", record.name).maybeSingle()
           existingRecord = data
         } else if (table === "surgeries" && record.protocol_number) {
           const { data } = await supabase
             .from("surgeries")
             .select("id")
             .eq("protocol_number", record.protocol_number)
-            .single()
+            .maybeSingle()
           existingRecord = data
         } else if (table === "profiles" && record.username) {
-          const { data } = await supabase.from("profiles").select("id").eq("username", record.username).single()
+          const { data } = await supabase.from("profiles").select("id").eq("username", record.username).maybeSingle()
+          existingRecord = data
+        } else if (table === "surgery_notes" && record.id) {
+          const { data } = await supabase.from("surgery_notes").select("id").eq("id", record.id).maybeSingle()
+          existingRecord = data
+        } else if (table === "day_notes" && record.salon_id && record.date) {
+          const { data } = await supabase
+            .from("day_notes")
+            .select("id")
+            .eq("salon_id", record.salon_id)
+            .eq("date", record.date)
+            .maybeSingle()
+          existingRecord = data
+        } else if (table === "daily_assigned_doctors" && record.salon_id && record.assigned_date && record.doctor_id) {
+          const { data } = await supabase
+            .from("daily_assigned_doctors")
+            .select("id")
+            .eq("salon_id", record.salon_id)
+            .eq("assigned_date", record.assigned_date)
+            .eq("doctor_id", record.doctor_id)
+            .maybeSingle()
           existingRecord = data
         }
 
@@ -554,7 +573,6 @@ export async function restoreFromBackup(
           continue
         }
 
-        // Create a copy without id for insertion
         const { id, created_at, updated_at, ...recordWithoutId } = record
 
         if (existingRecord) {
@@ -567,7 +585,6 @@ export async function restoreFromBackup(
             results[table].updated++
           }
         } else {
-          // Insert new record without the original id - let database generate new id
           const { error } = await supabase.from(table).insert(recordWithoutId)
           if (error) {
             console.error(`[v0] Error inserting ${table} record:`, error)

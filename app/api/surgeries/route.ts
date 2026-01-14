@@ -12,10 +12,10 @@ export async function GET(request: NextRequest) {
 
   let query = supabase.from("surgeries").select(`
       *,
-      responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name),
-      salon:salons(id, name),
-      creator:profiles!surgeries_created_by_fkey(id, username, first_name, last_name),
-      approver:profiles!surgeries_approved_by_fkey(id, username, first_name, last_name)
+      responsible_doctor:doctors!responsible_doctor_id(id, name),
+      salon:salons!salon_id(id, name),
+      creator:profiles!created_by(id, username, first_name, last_name),
+      approver:profiles!approved_by(id, username, first_name, last_name)
     `)
 
   if (isWaitingList === "true") {
