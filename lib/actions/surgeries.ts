@@ -515,19 +515,34 @@ export async function restoreFromBackup(
 
   console.log("[v0] Starting restore from backup:", { tables: options.tables, skipExisting: options.skipExisting })
 
-  for (const table of options.tables) {
+  const idMapping: Record<string, Record<string, string>> = {
+    salons: {},
+    doctors: {},
+    profiles: {},
+  }
+
+  const priorityOrder = [
+    "salons",
+    "doctors",
+    "profiles",
+    "surgeries",
+    "surgery_notes",
+    "day_notes",
+    "daily_assigned_doctors",
+  ]
+  const orderedTables = priorityOrder.filter((t) => options.tables.includes(t))
+
+  for (const table of orderedTables) {
     if (!backupData[table]) {
-      console.log(`[v0] No data found for table: ${table}`)
       continue
     }
 
     const records = backupData[table]
     results[table] = { inserted: 0, skipped: 0, updated: 0, errors: 0 }
 
-    console.log(`[v0] Processing ${records.length} records for table: ${table}`)
-
     for (const record of records) {
       try {
+        const oldId = record.id
         let existingRecord = null
 
         if (table === "salons" && record.name) {
@@ -536,6 +551,9 @@ export async function restoreFromBackup(
         } else if (table === "doctors" && record.name) {
           const { data } = await supabase.from("doctors").select("id").eq("name", record.name).maybeSingle()
           existingRecord = data
+        } else if (table === "profiles" && record.username) {
+          const { data } = await supabase.from("profiles").select("id").eq("username", record.username).maybeSingle()
+          existingRecord = data
         } else if (table === "surgeries" && record.protocol_number) {
           const { data } = await supabase
             .from("surgeries")
@@ -543,58 +561,94 @@ export async function restoreFromBackup(
             .eq("protocol_number", record.protocol_number)
             .maybeSingle()
           existingRecord = data
-        } else if (table === "profiles" && record.username) {
-          const { data } = await supabase.from("profiles").select("id").eq("username", record.username).maybeSingle()
-          existingRecord = data
         } else if (table === "surgery_notes" && record.id) {
           const { data } = await supabase.from("surgery_notes").select("id").eq("id", record.id).maybeSingle()
           existingRecord = data
         } else if (table === "day_notes" && record.salon_id && record.date) {
+          const mappedSalonId = idMapping.salons[record.salon_id] || record.salon_id
           const { data } = await supabase
             .from("day_notes")
             .select("id")
-            .eq("salon_id", record.salon_id)
+            .eq("salon_id", mappedSalonId)
             .eq("date", record.date)
             .maybeSingle()
           existingRecord = data
         } else if (table === "daily_assigned_doctors" && record.salon_id && record.assigned_date && record.doctor_id) {
+          const mappedSalonId = idMapping.salons[record.salon_id] || record.salon_id
+          const mappedDoctorId = idMapping.doctors[record.doctor_id] || record.doctor_id
           const { data } = await supabase
             .from("daily_assigned_doctors")
             .select("id")
-            .eq("salon_id", record.salon_id)
+            .eq("salon_id", mappedSalonId)
             .eq("assigned_date", record.assigned_date)
-            .eq("doctor_id", record.doctor_id)
+            .eq("doctor_id", mappedDoctorId)
             .maybeSingle()
           existingRecord = data
         }
 
         if (existingRecord && options.skipExisting) {
+          if (oldId && (table === "salons" || table === "doctors" || table === "profiles")) {
+            idMapping[table][oldId] = existingRecord.id
+          }
           results[table].skipped++
           continue
         }
 
         const { id, created_at, updated_at, ...recordWithoutId } = record
 
+        if (table === "surgeries") {
+          if (recordWithoutId.salon_id && idMapping.salons[recordWithoutId.salon_id]) {
+            recordWithoutId.salon_id = idMapping.salons[recordWithoutId.salon_id]
+          }
+          if (recordWithoutId.responsible_doctor_id && idMapping.doctors[recordWithoutId.responsible_doctor_id]) {
+            recordWithoutId.responsible_doctor_id = idMapping.doctors[recordWithoutId.responsible_doctor_id]
+          }
+          if (recordWithoutId.created_by && idMapping.profiles[recordWithoutId.created_by]) {
+            recordWithoutId.created_by = idMapping.profiles[recordWithoutId.created_by]
+          } else {
+            // Default to current user if no mapping found
+            recordWithoutId.created_by = user.id
+          }
+          if (recordWithoutId.approved_by && idMapping.profiles[recordWithoutId.approved_by]) {
+            recordWithoutId.approved_by = idMapping.profiles[recordWithoutId.approved_by]
+          }
+        }
+
+        if (table === "day_notes") {
+          if (recordWithoutId.salon_id && idMapping.salons[recordWithoutId.salon_id]) {
+            recordWithoutId.salon_id = idMapping.salons[recordWithoutId.salon_id]
+          }
+        }
+
+        if (table === "daily_assigned_doctors") {
+          if (recordWithoutId.salon_id && idMapping.salons[recordWithoutId.salon_id]) {
+            recordWithoutId.salon_id = idMapping.salons[recordWithoutId.salon_id]
+          }
+          if (recordWithoutId.doctor_id && idMapping.doctors[recordWithoutId.doctor_id]) {
+            recordWithoutId.doctor_id = idMapping.doctors[recordWithoutId.doctor_id]
+          }
+        }
+
         if (existingRecord) {
           // Update existing record
           const { error } = await supabase.from(table).update(recordWithoutId).eq("id", existingRecord.id)
           if (error) {
-            console.error(`[v0] Error updating ${table} record:`, error)
             results[table].errors++
           } else {
             results[table].updated++
           }
         } else {
-          const { error } = await supabase.from(table).insert(recordWithoutId)
+          const { data: newRecord, error } = await supabase.from(table).insert(recordWithoutId).select("id").single()
           if (error) {
-            console.error(`[v0] Error inserting ${table} record:`, error)
             results[table].errors++
           } else {
             results[table].inserted++
+            if (oldId && newRecord && (table === "salons" || table === "doctors" || table === "profiles")) {
+              idMapping[table][oldId] = newRecord.id
+            }
           }
         }
       } catch (err) {
-        console.error(`[v0] Error processing ${table} record:`, err)
         results[table].errors++
       }
     }
@@ -604,8 +658,6 @@ export async function restoreFromBackup(
     tables: options.tables,
     results,
   })
-
-  console.log("[v0] Restore complete:", results)
 
   revalidatePath("/")
   revalidatePath("/waiting-list")
