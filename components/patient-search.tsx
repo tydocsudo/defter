@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Search, User, Calendar, MapPin, X } from "lucide-react"
+import { Search, User, Calendar, MapPin, X, Stethoscope } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
@@ -16,14 +16,15 @@ interface Surgery {
   surgery_date: string | null
   salon_id: string | null
   salon?: { id: string; name: string } | null
+  responsible_doctor?: { id: string; name: string } | null
 }
 
 interface PatientSearchProps {
   onSelectPatient: (date: string, salonId: string | null) => void
-  selectedDoctorId?: string | null
+  doctorId?: string | null
 }
 
-export function PatientSearch({ onSelectPatient, selectedDoctorId }: PatientSearchProps) {
+export function PatientSearch({ onSelectPatient, doctorId }: PatientSearchProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Surgery[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -52,9 +53,10 @@ export function PatientSearch({ onSelectPatient, selectedDoctorId }: PatientSear
       setIsSearching(true)
       setIsOpen(true)
       try {
-        const url = selectedDoctorId
-          ? `/api/patients/search?q=${encodeURIComponent(searchQuery)}&doctorId=${selectedDoctorId}`
+        const url = doctorId
+          ? `/api/patients/search?q=${encodeURIComponent(searchQuery)}&doctorId=${doctorId}`
           : `/api/patients/search?q=${encodeURIComponent(searchQuery)}`
+
         const response = await fetch(url)
         if (response.ok) {
           const data = await response.json()
@@ -72,7 +74,7 @@ export function PatientSearch({ onSelectPatient, selectedDoctorId }: PatientSear
 
     const debounceTimer = setTimeout(searchPatients, 300)
     return () => clearTimeout(debounceTimer)
-  }, [searchQuery, selectedDoctorId])
+  }, [searchQuery, doctorId])
 
   const handleSelectPatient = (surgery: Surgery) => {
     if (surgery.surgery_date) {
@@ -127,10 +129,10 @@ export function PatientSearch({ onSelectPatient, selectedDoctorId }: PatientSear
                   {surgery.protocol_number && (
                     <p className="text-xs text-slate-500">Protokol: {surgery.protocol_number}</p>
                   )}
-                  {surgery.procedure_name && (
-                    <p className="text-xs text-purple-600 font-medium truncate">{surgery.procedure_name}</p>
-                  )}
                   {surgery.indication && <p className="text-xs text-slate-600 truncate">{surgery.indication}</p>}
+                  {surgery.procedure_name && (
+                    <p className="text-xs text-purple-600 truncate font-medium">{surgery.procedure_name}</p>
+                  )}
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
                     {surgery.surgery_date && (
                       <div className="flex items-center gap-1 text-xs text-blue-600">
@@ -142,6 +144,12 @@ export function PatientSearch({ onSelectPatient, selectedDoctorId }: PatientSear
                       <div className="flex items-center gap-1 text-xs text-green-600">
                         <MapPin className="h-3 w-3" />
                         {surgery.salon.name}
+                      </div>
+                    )}
+                    {surgery.responsible_doctor && (
+                      <div className="flex items-center gap-1 text-xs text-orange-600">
+                        <Stethoscope className="h-3 w-3" />
+                        {surgery.responsible_doctor.name}
                       </div>
                     )}
                   </div>

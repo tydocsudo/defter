@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
         procedure_name,
         surgery_date,
         salon_id,
-        responsible_doctor_id,
-        salon:salons(id, name)
+        salon:salons(id, name),
+        responsible_doctor:doctors!responsible_doctor_id(id, name)
       `)
       .eq("is_waiting_list", false)
       .not("surgery_date", "is", null)
@@ -39,13 +39,13 @@ export async function GET(request: NextRequest) {
     const { data, error } = await dbQuery.order("surgery_date", { ascending: false }).limit(10)
 
     if (error) {
-      console.error("[v0] Patient search error:", error)
+      console.error("Patient search error:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json(data || [])
   } catch (error) {
-    console.error("[v0] Patient search error:", error)
+    console.error("Patient search error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

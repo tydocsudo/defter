@@ -1,74 +1,68 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { SurgeryWithDetails, Doctor, Salon } from "@/lib/types"
+import { WaitingListTable } from "@/components/waiting-list/waiting-list-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { WaitingListTable } from "@/components/waiting-list/waiting-list-table"
+import type { SurgeryWithDetails, Doctor, Salon } from "@/lib/types"
 
-interface WaitingListPageClientProps {
-  initialSurgeries: SurgeryWithDetails[]
-  doctors: Doctor[]
-  salons: Salon[]
-}
+export function WaitingListPageClient() {
+  const [waitingSurgeries, setWaitingSurgeries] = useState<SurgeryWithDetails[]>([])
+  const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [salons, setSalons] = useState<Salon[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-export function WaitingListPageClient({ initialSurgeries, doctors, salons }: WaitingListPageClientProps) {
-  const [surgeries, setSurgeries] = useState<SurgeryWithDetails[]>(initialSurgeries)
+  useEffect(() => {
+    fetchData()
+  }, [])
 
-  const fetchWaitingList = async () => {
+  const fetchData = async () => {
     try {
-      const res = await fetch("/api/surgeries?is_waiting_list=true")
+      setIsLoading(true)
 
-      if (!res.ok) {
-        console.error("Waiting list fetch failed with status:", res.status)
-        return
+      const [surgeriesRes, doctorsRes, salonsRes] = await Promise.all([
+        fetch("/api/surgeries?is_waiting_list=true"),
+        fetch("/api/doctors"),
+        fetch("/api/salons"),
+      ])
+
+      // Check if response is JSON
+      if (surgeriesRes.ok) {
+        const contentType = surgeriesRes.headers.get("content-type")
+        if (contentType && contentType.includes("application/json")) {
+          const surgeriesData = await surgeriesRes.json()
+          setWaitingSurgeries(surgeriesData || [])
+        } else {
+          console.error("Error: Surgeries API did not return JSON")
+        }
       }
 
-      const text = await res.text()
-      if (!text) {
-        console.error("Waiting list response is empty")
-        return
+      if (doctorsRes.ok) {
+        const contentType = doctorsRes.headers.get("content-type")
+        if (contentType && contentType.includes("application/json")) {
+          const doctorsData = await doctorsRes.json()
+          setDoctors(doctorsData || [])
+        }
       }
 
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch (parseError) {
-        console.error("Waiting list response is not valid JSON:", text.substring(0, 100))
-        return
+      if (salonsRes.ok) {
+        const contentType = salonsRes.headers.get("content-type")
+        if (contentType && contentType.includes("application/json")) {
+          const salonsData = await salonsRes.json()
+          setSalons(salonsData || [])
+        }
       }
-
-      if (!Array.isArray(data)) {
-        console.error("Waiting list response is not an array:", data)
-        return
-      }
-
-      // Filter and sort the same way as waiting-list-sidebar
-      const actualWaiting = data.filter((s: any) => !s.salon_id && !s.surgery_date)
-      actualWaiting.sort((a: any, b: any) => a.patient_name.localeCompare(b.patient_name, "tr"))
-      setSurgeries(actualWaiting)
     } catch (error) {
-      console.error("Error fetching waiting list:", error)
+      console.error("Error fetching waiting list data:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  // Listen for waiting list changes
-  useEffect(() => {
-    const handleRefresh = () => {
-      fetchWaitingList()
-    }
-
-    window.addEventListener("waitingListChanged", handleRefresh)
-
-    return () => {
-      window.removeEventListener("waitingListChanged", handleRefresh)
-    }
-  }, [])
-
   return (
-    <main className="container mx-auto px-4 py-6">
+    <>
       <div className="mb-6">
         <Link href="/">
           <Button variant="ghost" className="gap-2 mb-4 dark:text-slate-100">
@@ -86,13 +80,17 @@ export function WaitingListPageClient({ initialSurgeries, doctors, salons }: Wai
         <CardHeader>
           <CardTitle className="dark:text-slate-100">Bekleyen Hastalar</CardTitle>
           <CardDescription className="dark:text-slate-400">
-            Toplam {surgeries.length} hasta bekleme listesinde
+            {isLoading ? "Yükleniyor..." : `Toplam ${waitingSurgeries.length} hasta bekleme listesinde`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <WaitingListTable surgeries={surgeries} doctors={doctors} salons={salons} />
+          {isLoading ? (
+            <div className="text-center py-8 text-gray-500">Yükleniyor...</div>
+          ) : (
+            <WaitingListTable surgeries={waitingSurgeries} doctors={doctors} salons={salons} />
+          )}
         </CardContent>
       </Card>
-    </main>
+    </>
   )
 }

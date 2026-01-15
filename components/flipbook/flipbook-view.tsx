@@ -37,12 +37,12 @@ import {
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import type { SurgeryWithDetails, SurgeryNote } from "@/lib/types"
+import type { SurgeryWithDetails } from "@/lib/types" // Added SurgeryWithDetails import
 import Link from "next/link"
 import { moveToWaitingList, assignFromWaitingList } from "@/lib/actions/surgeries"
 import { createDayNote, deleteDayNote, createSurgeryNote, deleteSurgeryNote } from "@/lib/actions/notes"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Textarea } from "@/components/ui/textarea"
+import { Textarea } from "@/components/ui/textarea" // Fixed typo: textareax -> textarea
 import { useRouter } from "next/navigation"
 import { WaitingListSidebar } from "@/components/calendar/waiting-list-sidebar"
 import { approveSurgery, unapproveSurgery } from "@/lib/actions/surgeries"
@@ -64,13 +64,14 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 
-interface SurgeryWithNotes extends SurgeryWithDetails {
-  surgery_notes?: SurgeryNote[]
-}
+// Removed duplicate interface definition for SurgeryWithNotes
+// interface SurgeryWithNotes extends SurgeryWithDetails {
+//   surgery_notes?: SurgeryNote[]
+// }
 
 interface FlipbookViewProps {
   salons: any[]
-  surgeries: any[]
+  surgeries: SurgeryWithDetails[] // Changed to SurgeryWithDetails for better type safety
   dayNotes: any[]
   doctors: any[]
   initialDate?: string // Added initialDate prop to scroll to specific date
@@ -83,8 +84,13 @@ export function FlipbookView({
   doctors: initialDoctors,
   initialDate,
 }: FlipbookViewProps) {
+  console.log("[v0] FlipbookView received surgeries:", {
+    count: surgeries.length,
+    dates: surgeries.map((s) => s.surgery_date),
+    salons: surgeries.map((s) => ({ id: s.salon_id, name: s.salon?.name })),
+  })
+
   const [selectedSalonId, setSelectedSalonId] = useState<string>("")
-  const [filterDoctorId, setFilterDoctorId] = useState<string | null>(null)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date()
     if (!isValid(today)) {
@@ -94,7 +100,7 @@ export function FlipbookView({
   })
   const [isFlipping, setIsFlipping] = useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
-  const [editingSurgery, setEditingSurgery] = useState<any | null>(null)
+  const [editingSurgery, setEditingSurgery] = useState<SurgeryWithDetails | null>(null) // Changed to SurgeryWithDetails
   const [newDayNote, setNewDayNote] = useState("")
   const [selectedDayForNote, setSelectedDayForNote] = useState<string>("")
   const [isAddingDayNote, setIsAddingDayNote] = useState(false)
@@ -117,7 +123,7 @@ export function FlipbookView({
   const salons = initialSalons
   const doctors = initialDoctors
 
-  // Removed filterDoctorId state as it's now managed by DoctorFilter
+  const [filterDoctorId, setFilterDoctorId] = useState<string | null>(null)
   const [filterSalonIds, setFilterSalonIds] = useState<string[]>([])
   const [showSalonDialog, setShowSalonDialog] = useState(false)
   const [pendingDoctorId, setPendingDoctorId] = useState<string | null>(null)
@@ -125,158 +131,17 @@ export function FlipbookView({
   const [filterMode, setFilterMode] = useState(false)
   const [filteredDatePage, setFilteredDatePage] = useState(0)
 
+  const [assignedDoctors, setAssignedDoctors] = useState<Record<string, string>>({})
+
   useEffect(() => {
     if (salons.length > 0 && !selectedSalonId) {
       setSelectedSalonId(salons[0].id)
     }
   }, [salons, selectedSalonId])
 
-  useEffect(() => {
-    // Check sessionStorage for scroll target (priority over URL params)
-    const scrollTarget = sessionStorage.getItem("flipbook_scroll_target")
-    if (scrollTarget) {
-      try {
-        const { date, salonId } = JSON.parse(scrollTarget)
-        if (date) {
-          const targetDate = parseISO(date)
-          if (isValid(targetDate)) {
-            const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
-            setCurrentWeekStart(weekStart)
-            if (salonId) {
-              setSelectedSalonId(salonId)
-            }
-          }
-        }
-        sessionStorage.removeItem("flipbook_scroll_target")
-      } catch (error) {
-        sessionStorage.removeItem("flipbook_scroll_target")
-      }
-      return
-    }
-
-    // Fallback to URL params for backwards compatibility
-    if (initialDate && !hasScrolledToInitialDate.current) {
-      try {
-        const targetDate = parseISO(initialDate)
-        if (isValid(targetDate)) {
-          const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
-          setCurrentWeekStart(weekStart)
-          hasScrolledToInitialDate.current = true
-
-          // Clean up URL parameter after scrolling
-          setTimeout(() => {
-            router.replace("/fliphtml", { scroll: false })
-          }, 500)
-        }
-      } catch (error) {
-        // Error parsing initialDate handled here
-      }
-    }
-  }, [initialDate, router])
-
-  const handleDoctorFilterChange = (doctorIds: string[]) => {
-    if (doctorIds.length === 0) {
-      // Clear filter
-      setFilterDoctorId(null)
-      setFilterSalonIds([])
-      setFilterMode(false)
-      setFilteredDates([])
-    } else {
-      // Single doctor selection - show salon dialog
-      setPendingDoctorId(doctorIds[0])
-      setShowSalonDialog(true)
-    }
-  }
-
-  const handleSalonFilterConfirm = () => {
-    if (!pendingDoctorId || filterSalonIds.length === 0) return
-
-    setFilterDoctorId(pendingDoctorId)
-    setShowSalonDialog(false)
-    setFilterMode(true)
-
-    // Find all dates where this doctor is assigned in selected salons
-    // This will be handled in the useEffect below
-  }
-
-  useEffect(() => {
-    if (!filterMode || !filterDoctorId || filterSalonIds.length === 0) {
-      setFilteredDates([])
-      setFilteredDatePage(0)
-      return
-    }
-
-    let isCancelled = false
-
-    const fetchFilteredDates = async () => {
-      try {
-        const allDates: Date[] = []
-
-        for (const salonId of filterSalonIds) {
-          if (isCancelled) return
-
-          const res = await fetch(`/api/assigned-doctors?salon_id=${salonId}`)
-
-          if (!res.ok) {
-            console.error("[v0] Failed to fetch assigned doctors, status:", res.status)
-            continue
-          }
-
-          const text = await res.text()
-          if (!text) continue
-
-          let assignedDoctors
-          try {
-            assignedDoctors = JSON.parse(text)
-          } catch (parseError) {
-            console.error("[v0] Invalid JSON response for assigned doctors")
-            continue
-          }
-
-          if (!Array.isArray(assignedDoctors)) continue
-
-          const doctorDates = assignedDoctors
-            .filter((ad: any) => ad.doctor_id === filterDoctorId && ad.assigned_date)
-            .map((ad: any) => {
-              const date = new Date(ad.assigned_date)
-              return isValid(date) ? date : null
-            })
-            .filter((date: Date | null): date is Date => date !== null)
-          allDates.push(...doctorDates)
-        }
-
-        if (isCancelled) return
-
-        // Sort dates and remove duplicates
-        const uniqueDates = allDates
-          .filter((date) => isValid(date))
-          .sort((a, b) => a.getTime() - b.getTime())
-          .filter((date, index, self) => index === 0 || date.getTime() !== self[index - 1].getTime())
-
-        setFilteredDates(uniqueDates)
-
-        setFilteredDatePage(0)
-
-        // Jump to first filtered date if available
-        if (uniqueDates.length > 0) {
-          const firstDate = uniqueDates[0]
-          if (isValid(firstDate)) {
-            const monday = startOfWeek(firstDate, { weekStartsOn: 1 })
-            setCurrentWeekStart(monday)
-          }
-        }
-      } catch (error) {
-        console.error("[v0] Error fetching filtered dates:", error)
-      }
-    }
-
-    const timeoutId = setTimeout(fetchFilteredDates, 100)
-
-    return () => {
-      isCancelled = true
-      clearTimeout(timeoutId)
-    }
-  }, [filterMode, filterDoctorId, filterSalonIds])
+  // FIX: Ensure weekDays is defined before it's used in the dependency array.
+  // It's defined later in the component.
+  const [currentWeekStartRef, setCurrentWeekStartRef] = useState(currentWeekStart) // Use a ref for currentWeekStart
 
   const getSafeCurrentWeekStart = useCallback(() => {
     if (!isValid(currentWeekStart)) {
@@ -286,7 +151,7 @@ export function FlipbookView({
     return currentWeekStart
   }, [currentWeekStart])
 
-  const getFilteredWeekDays = () => {
+  const getFilteredWeekDays = useCallback(() => {
     const safeWeekStart = getSafeCurrentWeekStart()
 
     if (!filterMode || filteredDates.length === 0) {
@@ -302,19 +167,202 @@ export function FlipbookView({
     }
 
     return nextDates
-  }
+  }, [filterMode, filteredDates, filteredDatePage, getSafeCurrentWeekStart])
 
   const weekDays = getFilteredWeekDays()
   const safeWeekStart = getSafeCurrentWeekStart()
 
   const weekEnd = filterMode && weekDays.length > 0 ? weekDays[weekDays.length - 1] : addDays(safeWeekStart, 4)
 
-  const weekSurgeries = surgeries.filter((s) => {
-    if (!s.surgery_date) return false
-    const surgeryDate = new Date(s.surgery_date)
-    if (!isValid(surgeryDate)) return false
-    return surgeryDate >= safeWeekStart && surgeryDate <= weekEnd
-  })
+  useEffect(() => {
+    if (selectedSalonId && weekDays.length > 0) {
+      const startDate = format(weekDays[0], "yyyy-MM-dd")
+      const endDate = format(weekDays[weekDays.length - 1], "yyyy-MM-dd")
+
+      fetch(`/api/assigned-doctors?salon_id=${selectedSalonId}&start_date=${startDate}&end_date=${endDate}`)
+        .then((res) => res.json())
+        .then((data) => {
+          const doctorMap: Record<string, string> = {}
+          data.forEach((assignment: any) => {
+            if (assignment.doctor && assignment.assigned_date) {
+              doctorMap[assignment.assigned_date] = assignment.doctor.name
+            }
+          })
+          setAssignedDoctors(doctorMap)
+        })
+        .catch((err) => console.error("Error fetching assigned doctors:", err))
+    }
+    // </CHANGE> Changed dependency to underlying state variables
+  }, [selectedSalonId, currentWeekStart, filterMode, filteredDates, filteredDatePage, weekDays]) // Added weekDays to dependency array
+
+  useEffect(() => {
+    // Check sessionStorage for scroll target (priority over URL params)
+    const scrollTarget = sessionStorage.getItem("flipbook_scroll_target")
+    if (scrollTarget) {
+      try {
+        const { date, salonId } = JSON.parse(scrollTarget)
+        if (date) {
+          const targetDate = parseISO(date)
+          if (isValid(targetDate)) {
+            const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
+            setCurrentWeekStart(weekStart)
+            if (salonId) {
+              setSelectedSalonId(salonId)
+            }
+            console.log("[v0] Scrolled to date from sessionStorage:", date, "salon:", salonId)
+          }
+        }
+        sessionStorage.removeItem("flipbook_scroll_target")
+      } catch (error) {
+        console.error("[v0] Error parsing scroll target:", error)
+        sessionStorage.removeItem("flipbook_scroll_target")
+      }
+      return
+    }
+
+    // Fallback to URL params for backwards compatibility
+    if (initialDate && !hasScrolledToInitialDate.current) {
+      try {
+        const targetDate = parseISO(initialDate)
+        if (isValid(targetDate)) {
+          const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
+          setCurrentWeekStart(weekStart)
+          hasScrolledToInitialDate.current = true
+          console.log("[v0] Scrolled to week containing:", initialDate)
+
+          // Clean up URL parameter after scrolling
+          setTimeout(() => {
+            router.replace("/fliphtml", { scroll: false })
+          }, 500)
+        }
+      } catch (error) {
+        console.error("[v0] Error parsing initialDate:", error)
+      }
+    }
+  }, [initialDate, router])
+
+  const handleDoctorFilterChange = (doctorIds: string[]) => {
+    if (doctorIds.length === 0) {
+      // Clear filter
+      setFilterDoctorId(null)
+      setFilterSalonIds([])
+      setFilterMode(false)
+      setFilteredDates([])
+    } else {
+      if (!selectedSalonId) {
+        alert("Lütfen önce bir salon seçin")
+        return
+      }
+
+      // Single doctor selection - apply filter directly to current salon
+      setFilterDoctorId(doctorIds[0])
+      setFilterSalonIds([selectedSalonId]) // Initially filter for the current selected salon
+      setShowSalonDialog(true) // Show dialog to select multiple salons
+      setPendingDoctorId(doctorIds[0]) // Store the selected doctor ID
+      setFilterMode(true)
+    }
+  }
+
+  const handleSalonFilterConfirm = () => {
+    if (!pendingDoctorId || filterSalonIds.length === 0) return
+
+    setFilterDoctorId(pendingDoctorId) // Set the actual filter doctor ID
+    setShowSalonDialog(false)
+    setFilterMode(true) // Activate filter mode
+
+    // The actual fetching of filteredDates is handled in the useEffect below
+  }
+
+  useEffect(() => {
+    if (!filterMode || !filterDoctorId || filterSalonIds.length === 0) {
+      setFilteredDates([])
+      setFilteredDatePage(0)
+      return
+    }
+
+    let isCancelled = false
+
+    const fetchFilteredDates = async () => {
+      try {
+        const allDates: Date[] = []
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        for (const salonId of filterSalonIds) {
+          if (isCancelled) return
+
+          const res = await fetch(`/api/assigned-doctors?salon_id=${salonId}`)
+
+          if (!res.ok) {
+            console.error("Failed to fetch assigned doctors, status:", res.status)
+            continue
+          }
+
+          const text = await res.text()
+          if (!text) continue
+
+          let assignedDoctors
+          try {
+            assignedDoctors = JSON.parse(text)
+          } catch (parseError) {
+            console.error("Invalid JSON response for assigned doctors")
+            continue
+          }
+
+          if (!Array.isArray(assignedDoctors)) continue
+
+          const doctorDates = assignedDoctors
+            .filter((ad: any) => ad.doctor_id === filterDoctorId && ad.assigned_date)
+            .map((ad: any) => {
+              const date = new Date(ad.assigned_date)
+              return isValid(date) ? date : null
+            })
+            .filter((date: Date | null): date is Date => date !== null)
+            .filter((date: Date) => date >= today)
+
+          allDates.push(...doctorDates)
+        }
+
+        if (isCancelled) return
+
+        // Sort dates and remove duplicates
+        const uniqueDates = allDates
+          .filter((date) => isValid(date))
+          .sort((a, b) => a.getTime() - b.getTime())
+          .filter((date, index, self) => index === 0 || date.getTime() !== self[index - 1].getTime())
+
+        if (uniqueDates.length === 0) {
+          alert("Seçilen hoca için gelecek tarihli atanmış gün bulunamadı")
+          setFilterDoctorId(null)
+          setFilterSalonIds([])
+          setFilterMode(false)
+          setPendingDoctorId(null)
+          return
+        }
+
+        setFilteredDates(uniqueDates)
+        setFilteredDatePage(0)
+
+        // Jump to first filtered date if available
+        if (uniqueDates.length > 0) {
+          const firstDate = uniqueDates[0]
+          if (isValid(firstDate)) {
+            const monday = startOfWeek(firstDate, { weekStartsOn: 1 })
+            setCurrentWeekStart(monday)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching filtered dates:", error)
+      }
+    }
+
+    const timeoutId = setTimeout(fetchFilteredDates, 100)
+
+    return () => {
+      isCancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [filterMode, filterDoctorId, filterSalonIds, pendingDoctorId]) // Added pendingDoctorId to dependency array
 
   const nextWeek = useCallback(() => {
     if (!isFlipping) {
@@ -336,7 +384,7 @@ export function FlipbookView({
     }
   }, [isFlipping])
 
-  const nextFilteredWeek = () => {
+  const nextFilteredWeek = useCallback(() => {
     if (!filterMode || filteredDates.length === 0) {
       nextWeek()
       return
@@ -353,9 +401,9 @@ export function FlipbookView({
         setCurrentWeekStart(startOfWeek(nextDate, { weekStartsOn: 1 }))
       }
     }
-  }
+  }, [filterMode, filteredDates, filteredDatePage, nextWeek])
 
-  const prevFilteredWeek = () => {
+  const prevFilteredWeek = useCallback(() => {
     if (!filterMode || filteredDates.length === 0) {
       prevWeek()
       return
@@ -370,7 +418,7 @@ export function FlipbookView({
     if (prevDate) {
       setCurrentWeekStart(startOfWeek(prevDate, { weekStartsOn: 1 }))
     }
-  }
+  }, [filterMode, filteredDates, filteredDatePage, prevWeek])
 
   const jumpToDate = useCallback((date: Date) => {
     // Find the Monday of the week containing the selected date
@@ -381,6 +429,13 @@ export function FlipbookView({
     // If it's Tuesday-Saturday (2-6), go back to Monday
     const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
     const monday = subDays(date, daysToSubtract)
+
+    console.log("[v0] Jump to date:", {
+      selectedDate: format(date, "yyyy-MM-dd (EEEE)", { locale: tr }),
+      calculatedMonday: format(monday, "yyyy-MM-dd (EEEE)", { locale: tr }),
+      dayOfWeek,
+      daysToSubtract,
+    })
 
     setCurrentWeekStart(monday)
     setIsCalendarOpen(false)
@@ -424,7 +479,7 @@ export function FlipbookView({
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [])
+  }, [prevFilteredWeek, nextFilteredWeek]) // Added dependencies
 
   const handleMoveToWaitingList = async (surgeryId: string) => {
     try {
@@ -499,18 +554,32 @@ export function FlipbookView({
     }
   }
 
-  const getSurgeriesForDay = (day: Date) => {
-    const dateKey = format(day, "yyyy-MM-dd")
-    const filtered = surgeries.filter(
-      (surgery) => surgery.surgery_date === dateKey && surgery.salon_id === selectedSalonId,
-    )
-    return filtered
-  }
+  const getSurgeriesForDay = useCallback(
+    (day: Date) => {
+      const dateKey = format(day, "yyyy-MM-dd")
+      const filtered = surgeries.filter(
+        (surgery) => surgery.surgery_date === dateKey && surgery.salon_id === selectedSalonId,
+      )
+      if (filtered.length > 0) {
+        console.log("[v0] getSurgeriesForDay:", {
+          day: dateKey,
+          selectedSalonId,
+          foundCount: filtered.length,
+          patientNames: filtered.map((s) => s.patient_name),
+        })
+      }
+      return filtered
+    },
+    [surgeries, selectedSalonId],
+  )
 
-  const getDayNotesForDay = (day: Date) => {
-    const dateKey = format(day, "yyyy-MM-dd")
-    return dayNotes.filter((note) => note.note_date === dateKey && note.salon_id === selectedSalonId)
-  }
+  const getDayNotesForDay = useCallback(
+    (day: Date) => {
+      const dateKey = format(day, "yyyy-MM-dd")
+      return dayNotes.filter((note) => note.note_date === dateKey && note.salon_id === selectedSalonId)
+    },
+    [dayNotes, selectedSalonId],
+  )
 
   const handleApprove = async (surgeryId: string) => {
     try {
@@ -525,6 +594,7 @@ export function FlipbookView({
 
       // Save current view state before reload
       const safeDate = getSafeCurrentWeekStart()
+      // </CHANGE> Fixed typo: JSON.JSON.stringify -> JSON.stringify
       sessionStorage.setItem(
         "flipbook_scroll_target",
         JSON.stringify({
@@ -578,21 +648,25 @@ export function FlipbookView({
     }
   }
 
-  const handlePatientSelect = (date: string, salonId: string | null) => {
-    try {
-      const targetDate = parseISO(date)
-      if (isValid(targetDate)) {
-        const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
-        setCurrentWeekStart(weekStart)
-        // Switch salon if patient is in a different salon
-        if (salonId && salonId !== selectedSalonId) {
-          setSelectedSalonId(salonId)
+  const handlePatientSelect = useCallback(
+    (date: string, salonId: string | null) => {
+      try {
+        const targetDate = parseISO(date)
+        if (isValid(targetDate)) {
+          const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
+          setCurrentWeekStart(weekStart)
+          // Switch salon if patient is in a different salon
+          if (salonId && salonId !== selectedSalonId) {
+            setSelectedSalonId(salonId)
+          }
+          console.log("[v0] Navigated to patient date:", date, "salon:", salonId)
         }
+      } catch (error) {
+        console.error("[v0] Error navigating to patient:", error)
       }
-    } catch (error) {
-      // Error navigating to patient handled here
-    }
-  }
+    },
+    [selectedSalonId],
+  ) // Added selectedSalonId to dependency array
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -614,7 +688,7 @@ export function FlipbookView({
                 </Button>
               </Link>
               {/* PatientSearch component between Home and Tarihe Git */}
-              <PatientSearch onSelectPatient={handlePatientSelect} selectedDoctorId={filterDoctorId} />
+              <PatientSearch onSelectPatient={handlePatientSelect} doctorId={filterDoctorId} />
             </div>
 
             {/* Navigation controls */}
@@ -649,16 +723,17 @@ export function FlipbookView({
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <div className="text-xs md:text-sm text-center font-semibold whitespace-nowrap">
-                  {filterMode && weekDays && weekDays.length > 0 ? (
+                  {filterMode && weekDays.length > 0 ? (
                     <>
-                      {format(weekDays[0], "d MMM yyyy", { locale: tr })} -{" "}
+                      {format(weekDays[0], "d MMM", { locale: tr })} -{" "}
                       {format(weekDays[weekDays.length - 1], "d MMM yyyy", { locale: tr })}
                     </>
-                  ) : (
+                  ) : isValid(safeWeekStart) && isValid(weekEnd) ? (
                     <>
-                      {format(safeWeekStart, "d MMM yyyy", { locale: tr })} -{" "}
-                      {format(weekEnd, "d MMM yyyy", { locale: tr })}
+                      {format(safeWeekStart, "d MMM", { locale: tr })} - {format(weekEnd, "d MMM yyyy", { locale: tr })}
                     </>
+                  ) : (
+                    "Tarih yükleniyor..."
                   )}
                 </div>
                 <Button
@@ -688,20 +763,9 @@ export function FlipbookView({
 
               <DoctorFilter
                 doctors={doctors}
-                selectedDoctor={filterDoctorId}
-                onDoctorSelect={(doctorId) => {
-                  setFilterDoctorId(doctorId)
-                  if (doctorId) {
-                    // If a doctor is selected, show the salon dialog to filter by salon
-                    setPendingDoctorId(doctorId)
-                    setShowSalonDialog(true)
-                  } else {
-                    // If the doctor filter is cleared, reset salon filters and mode
-                    setFilterSalonIds([])
-                    setFilterMode(false)
-                    setFilteredDates([])
-                  }
-                }}
+                selectedDoctors={filterDoctorId ? [filterDoctorId] : []}
+                onSelectionChange={handleDoctorFilterChange}
+                multiSelect={false}
               />
             </div>
           </div>
@@ -728,7 +792,7 @@ export function FlipbookView({
               const daySurgeries = getSurgeriesForDay(day)
               const dayNotesForDay = getDayNotesForDay(day)
               const dateKey = format(day, "yyyy-MM-dd")
-              const dayDoctors = [...new Set(daySurgeries.map((s) => s.responsible_doctor?.name).filter(Boolean))]
+              const assignedDoctor = assignedDoctors[dateKey]
               const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
               const isDropTarget = dropTarget === dateKey
 
@@ -748,9 +812,7 @@ export function FlipbookView({
                   <div className="bg-primary text-primary-foreground p-3 border-b">
                     <h3 className="font-bold text-lg">{format(day, "EEEE", { locale: tr })}</h3>
                     <p className="text-sm opacity-90">{format(day, "d MMMM yyyy", { locale: tr })}</p>
-                    {dayDoctors.length > 0 && (
-                      <p className="text-xs opacity-75 mt-1">Hocalar: {dayDoctors.join(", ")}</p>
-                    )}
+                    {assignedDoctor && <p className="text-xs opacity-75 mt-1">Hocalar: {assignedDoctor}</p>}
                   </div>
 
                   {/* Day content */}

@@ -26,10 +26,10 @@ export default async function FliphtmlPage({
     .from("surgeries")
     .select(`
       *,
-      salon:salons!salon_id(id, name),
-      responsible_doctor:doctors!responsible_doctor_id(id, name),
-      creator:profiles!created_by(id, username, first_name, last_name),
-      approver:profiles!approved_by(id, username, first_name, last_name),
+      salon:salons(id, name),
+      responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name),
+      creator:profiles!surgeries_created_by_fkey(id, username, first_name, last_name),
+      approver:profiles!surgeries_approved_by_fkey(id, username, first_name, last_name),
       surgery_notes(id, note, created_at, created_by)
     `)
     .eq("is_waiting_list", false)
