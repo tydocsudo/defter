@@ -379,6 +379,18 @@ export function BulkOperations({ salons, doctors }: { salons: any[]; doctors: an
                       onChange={(e) => handlePatientChange(index, "procedure_name", e.target.value)}
                       className="dark:bg-slate-600 dark:border-slate-500 dark:text-white"
                     />
+                    <Input
+                      placeholder="Telefon 1 *"
+                      value={patient.phone_number_1}
+                      onChange={(e) => handlePatientChange(index, "phone_number_1", e.target.value)}
+                      className="dark:bg-slate-600 dark:border-slate-500 dark:text-white"
+                    />
+                    <Input
+                      placeholder="Telefon 2"
+                      value={patient.phone_number_2}
+                      onChange={(e) => handlePatientChange(index, "phone_number_2", e.target.value)}
+                      className="dark:bg-slate-600 dark:border-slate-500 dark:text-white"
+                    />
                     <Select
                       value={patient.responsible_doctor_id}
                       onValueChange={(value) => handlePatientChange(index, "responsible_doctor_id", value)}
@@ -398,13 +410,7 @@ export function BulkOperations({ salons, doctors }: { salons: any[]; doctors: an
                         ))}
                       </SelectContent>
                     </Select>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Telefon 1"
-                        value={patient.phone_number_1}
-                        onChange={(e) => handlePatientChange(index, "phone_number_1", e.target.value)}
-                        className="dark:bg-slate-600 dark:border-slate-500 dark:text-white flex-1"
-                      />
+                    <div className="flex gap-2 col-span-2">
                       {bulkPatients.length > 1 && (
                         <Button
                           type="button"

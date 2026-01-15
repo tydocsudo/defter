@@ -3,7 +3,7 @@
 import type React from "react"
 import type { Doctor, Salon, Surgery } from "@/lib/types"
 import { createSurgery, updateSurgery } from "@/lib/actions/surgeries"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -76,8 +76,44 @@ export function SurgeryForm({
   const [isSearchingSlots, setIsSearchingSlots] = useState(false)
   const [pendingPatientData, setPendingPatientData] = useState<any>(null)
   const [surgeryDateError, setSurgeryDateError] = useState<string | null>(null)
+  const [doctorMismatchWarning, setDoctorMismatchWarning] = useState<{
+    show: boolean
+    assignedDoctorName: string
+    assignedDoctorId: string
+  } | null>(null)
+
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(
+    surgery?.responsible_doctor_id || pendingPatientData?.responsible_doctor_id || null,
+  )
+  const [selectedSalonId, setSelectedSalonId] = useState<string | null>(
+    surgery?.salon_id || pendingPatientData?.salon_id || defaultSalonId || null,
+  )
+  const [assignedDates, setAssignedDates] = useState<Set<string>>(new Set())
+  const [isLoadingDates, setIsLoadingDates] = useState(false)
 
   const router = useRouter()
+
+  useEffect(() => {
+    if (selectedDoctorId && selectedSalonId && (assignmentType === "salon" || surgery)) {
+      setIsLoadingDates(true)
+
+      fetch(`/api/doctor-assigned-dates?doctorId=${selectedDoctorId}&salonId=${selectedSalonId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.dates) {
+            setAssignedDates(new Set(data.dates))
+          }
+        })
+        .catch((err) => {
+          console.error("Error fetching assigned dates:", err)
+        })
+        .finally(() => {
+          setIsLoadingDates(false)
+        })
+    } else {
+      setAssignedDates(new Set())
+    }
+  }, [selectedDoctorId, selectedSalonId, assignmentType, surgery])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -85,6 +121,7 @@ export function SurgeryForm({
     if (assignmentType === "salon") {
       const formData = new FormData(e.currentTarget)
       const selectedDate = formData.get("surgery_date") as string
+      const selectedDoctorId = formData.get("responsible_doctor_id") as string
 
       if (!selectedDate || selectedDate.trim() === "") {
         setError("Salona atarken ameliyat tarihi zorunludur")
@@ -94,6 +131,30 @@ export function SurgeryForm({
       if (isWeekend(selectedDate)) {
         setError("Cumartesi ve Pazar günleri ameliyat yapılamaz")
         return
+      }
+
+      // Check if there's a doctor assignment mismatch
+      if (selectedDoctorId && selectedSalonId && selectedDate) {
+        try {
+          const response = await fetch(
+            `/api/doctor-assigned-dates?doctorId=${selectedDoctorId}&salonId=${selectedSalonId}&checkDate=${selectedDate}`,
+          )
+          const data = await response.json()
+
+          if (data.success && data.assignedDoctor && data.assignedDoctor.id !== selectedDoctorId) {
+            const assignedDoctor = doctors.find((d) => d.id === data.assignedDoctor.id)
+            if (assignedDoctor) {
+              const confirmed = window.confirm(
+                `Bu tarihe başka bir hoca atanmış: ${assignedDoctor.name}\n\nSeçtiğiniz hoca: ${doctors.find((d) => d.id === selectedDoctorId)?.name}\n\nYine de devam etmek istiyor musunuz?`,
+              )
+              if (!confirmed) {
+                return
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error checking doctor assignment:", err)
+        }
       }
     }
 
@@ -422,6 +483,7 @@ export function SurgeryForm({
                   defaultValue={
                     surgery?.responsible_doctor_id || pendingPatientData?.responsible_doctor_id || undefined
                   }
+                  onValueChange={(value) => setSelectedDoctorId(value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seçiniz" />
@@ -472,6 +534,7 @@ export function SurgeryForm({
                       defaultValue={surgery?.salon_id || pendingPatientData?.salon_id || defaultSalonId}
                       disabled={isLoading}
                       required={assignmentType === "auto"}
+                      onValueChange={(value) => setSelectedSalonId(value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Seçiniz" />
@@ -487,7 +550,14 @@ export function SurgeryForm({
                   </div>
                   {(assignmentType === "salon" || surgery) && (
                     <div className="space-y-2">
-                      <Label htmlFor="surgery_date">Ameliyat Tarihi *</Label>
+                      <Label htmlFor="surgery_date">
+                        Ameliyat Tarihi *
+                        {isLoadingDates && <span className="text-xs text-muted-foreground ml-2">Yükleniyor...</span>}
+                        {!isLoadingDates && selectedDoctorId && assignedDates.size > 0 && (
+                          <span className="text-xs text-blue-600 ml-2">(Sadece hoca atanmış günler seçilebilir)</span>
+                        )}
+                        {/* */}
+                      </Label>
                       <Input
                         id="surgery_date"
                         name="surgery_date"
@@ -500,11 +570,28 @@ export function SurgeryForm({
                           if (e.target.value && isWeekend(e.target.value)) {
                             setSurgeryDateError("Cumartesi ve Pazar günleri seçilemez")
                             e.target.setCustomValidity("Cumartesi ve Pazar günleri seçilemez")
-                          } else {
-                            setSurgeryDateError(null)
-                            e.target.setCustomValidity("")
+                            return
                           }
+
+                          if (selectedDoctorId && assignedDates.size > 0 && e.target.value) {
+                            if (!assignedDates.has(e.target.value)) {
+                              setSurgeryDateError("Seçilen hoca bu güne atanmamış")
+                              e.target.setCustomValidity("Seçilen hoca bu güne atanmamış")
+                              return
+                            }
+                          }
+                          //
+
+                          setSurgeryDateError(null)
+                          e.target.setCustomValidity("")
                         }}
+                        className={assignedDates.size > 0 ? "date-picker-with-highlights" : ""}
+                        style={
+                          {
+                            // Inline style to highlight assigned dates - will be enhanced with CSS
+                          }
+                        }
+                        //
                       />
                       {surgeryDateError && <p className="text-xs text-red-600">{surgeryDateError}</p>}
                     </div>
