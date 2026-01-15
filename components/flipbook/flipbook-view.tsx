@@ -450,7 +450,7 @@ export function FlipbookView({
         const safeDate = getSafeCurrentWeekStart()
         sessionStorage.setItem(
           "flipbook_scroll_target",
-          JSON.JSON.stringify({
+          JSON.stringify({
             date: format(safeDate, "yyyy-MM-dd"),
             salonId: selectedSalonId,
           }),
