@@ -90,6 +90,7 @@ export function FlipbookView({
   })
 
   const [selectedSalonId, setSelectedSalonId] = useState<string>("")
+  const [filterDoctorId, setFilterDoctorId] = useState<string | null>(null)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date()
     if (!isValid(today)) {
@@ -122,7 +123,7 @@ export function FlipbookView({
   const salons = initialSalons
   const doctors = initialDoctors
 
-  const [filterDoctorId, setFilterDoctorId] = useState<string | null>(null)
+  // Removed filterDoctorId state as it's now managed by DoctorFilter
   const [filterSalonIds, setFilterSalonIds] = useState<string[]>([])
   const [showSalonDialog, setShowSalonDialog] = useState(false)
   const [pendingDoctorId, setPendingDoctorId] = useState<string | null>(null)
@@ -449,7 +450,7 @@ export function FlipbookView({
         const safeDate = getSafeCurrentWeekStart()
         sessionStorage.setItem(
           "flipbook_scroll_target",
-          JSON.stringify({
+          JSON.JSON.stringify({
             date: format(safeDate, "yyyy-MM-dd"),
             salonId: selectedSalonId,
           }),
@@ -639,7 +640,7 @@ export function FlipbookView({
                 </Button>
               </Link>
               {/* PatientSearch component between Home and Tarihe Git */}
-              <PatientSearch onSelectPatient={handlePatientSelect} />
+              <PatientSearch onSelectPatient={handlePatientSelect} selectedDoctorId={filterDoctorId} />
             </div>
 
             {/* Navigation controls */}
@@ -714,9 +715,20 @@ export function FlipbookView({
 
               <DoctorFilter
                 doctors={doctors}
-                selectedDoctors={filterDoctorId ? [filterDoctorId] : []}
-                onSelectionChange={handleDoctorFilterChange}
-                multiSelect={false}
+                selectedDoctor={filterDoctorId}
+                onDoctorSelect={(doctorId) => {
+                  setFilterDoctorId(doctorId)
+                  if (doctorId) {
+                    // If a doctor is selected, show the salon dialog to filter by salon
+                    setPendingDoctorId(doctorId)
+                    setShowSalonDialog(true)
+                  } else {
+                    // If the doctor filter is cleared, reset salon filters and mode
+                    setFilterSalonIds([])
+                    setFilterMode(false)
+                    setFilteredDates([])
+                  }
+                }}
               />
             </div>
           </div>

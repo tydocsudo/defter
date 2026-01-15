@@ -12,6 +12,7 @@ interface Surgery {
   patient_name: string
   protocol_number: string | null
   indication: string | null
+  procedure_name: string | null
   surgery_date: string | null
   salon_id: string | null
   salon?: { id: string; name: string } | null
@@ -19,9 +20,10 @@ interface Surgery {
 
 interface PatientSearchProps {
   onSelectPatient: (date: string, salonId: string | null) => void
+  selectedDoctorId?: string | null
 }
 
-export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
+export function PatientSearch({ onSelectPatient, selectedDoctorId }: PatientSearchProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Surgery[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -50,7 +52,10 @@ export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
       setIsSearching(true)
       setIsOpen(true)
       try {
-        const response = await fetch(`/api/patients/search?q=${encodeURIComponent(searchQuery)}`)
+        const url = selectedDoctorId
+          ? `/api/patients/search?q=${encodeURIComponent(searchQuery)}&doctorId=${selectedDoctorId}`
+          : `/api/patients/search?q=${encodeURIComponent(searchQuery)}`
+        const response = await fetch(url)
         if (response.ok) {
           const data = await response.json()
           setSearchResults(data)
@@ -58,7 +63,7 @@ export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
           setSearchResults([])
         }
       } catch (error) {
-        console.error("[v0] Error searching patients:", error)
+        console.error("Error searching patients:", error)
         setSearchResults([])
       } finally {
         setIsSearching(false)
@@ -67,7 +72,7 @@ export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
 
     const debounceTimer = setTimeout(searchPatients, 300)
     return () => clearTimeout(debounceTimer)
-  }, [searchQuery])
+  }, [searchQuery, selectedDoctorId])
 
   const handleSelectPatient = (surgery: Surgery) => {
     if (surgery.surgery_date) {
@@ -121,6 +126,9 @@ export function PatientSearch({ onSelectPatient }: PatientSearchProps) {
                   <p className="font-medium text-slate-900 truncate">{surgery.patient_name}</p>
                   {surgery.protocol_number && (
                     <p className="text-xs text-slate-500">Protokol: {surgery.protocol_number}</p>
+                  )}
+                  {surgery.procedure_name && (
+                    <p className="text-xs text-purple-600 font-medium truncate">{surgery.procedure_name}</p>
                   )}
                   {surgery.indication && <p className="text-xs text-slate-600 truncate">{surgery.indication}</p>}
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
