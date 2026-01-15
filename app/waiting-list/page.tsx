@@ -1,12 +1,13 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getCurrentUser } from "@/lib/actions/auth"
 import { redirect } from "next/navigation"
 import { Header } from "@/components/header"
-import { WaitingListTable } from "@/components/waiting-list/waiting-list-table"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { WaitingListPageClient } from "@/components/waiting-list/waiting-list-page-client"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export default async function WaitingListPage() {
   const user = await getCurrentUser()
@@ -15,14 +16,14 @@ export default async function WaitingListPage() {
     redirect("/login")
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [surgeriesRes, doctorsRes, salonsRes] = await Promise.all([
     supabase
       .from("surgeries")
       .select(`
         *,
-        responsible_doctor:doctors!surgeries_responsible_doctor_id_fkey(id, name)
+        responsible_doctor:doctors!responsible_doctor_id(id, name)
       `)
       .eq("is_waiting_list", true)
       .is("salon_id", null)
@@ -42,10 +43,10 @@ export default async function WaitingListPage() {
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">
           <Link href="/">
-            <Button variant="ghost" className="gap-2 mb-4 dark:text-slate-100">
+            <button variant="ghost" className="gap-2 mb-4 dark:text-slate-100">
               <ArrowLeft className="h-4 w-4" />
               Ana Sayfaya Dön
-            </Button>
+            </button>
           </Link>
           <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-100">Bekleme Listesi</h2>
           <p className="text-gray-600 dark:text-slate-400 mt-2">
@@ -53,17 +54,7 @@ export default async function WaitingListPage() {
           </p>
         </div>
 
-        <Card className="dark:bg-slate-800 dark:border-slate-600">
-          <CardHeader>
-            <CardTitle className="dark:text-slate-100">Bekleyen Hastalar</CardTitle>
-            <CardDescription className="dark:text-slate-400">
-              Toplam {waitingSurgeries.length} hasta bekleme listesinde
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WaitingListTable surgeries={waitingSurgeries} doctors={doctors} salons={salons} />
-          </CardContent>
-        </Card>
+        <WaitingListPageClient initialSurgeries={waitingSurgeries} doctors={doctors} salons={salons} />
       </main>
     </div>
   )
