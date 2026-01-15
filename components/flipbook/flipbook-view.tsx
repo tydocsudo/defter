@@ -83,12 +83,6 @@ export function FlipbookView({
   doctors: initialDoctors,
   initialDate,
 }: FlipbookViewProps) {
-  console.log("[v0] FlipbookView received surgeries:", {
-    count: surgeries.length,
-    dates: surgeries.map((s) => s.surgery_date),
-    salons: surgeries.map((s) => ({ id: s.salon_id, name: s.salon?.name })),
-  })
-
   const [selectedSalonId, setSelectedSalonId] = useState<string>("")
   const [filterDoctorId, setFilterDoctorId] = useState<string | null>(null)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -151,12 +145,10 @@ export function FlipbookView({
             if (salonId) {
               setSelectedSalonId(salonId)
             }
-            console.log("[v0] Scrolled to date from sessionStorage:", date, "salon:", salonId)
           }
         }
         sessionStorage.removeItem("flipbook_scroll_target")
       } catch (error) {
-        console.error("[v0] Error parsing scroll target:", error)
         sessionStorage.removeItem("flipbook_scroll_target")
       }
       return
@@ -170,7 +162,6 @@ export function FlipbookView({
           const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
           setCurrentWeekStart(weekStart)
           hasScrolledToInitialDate.current = true
-          console.log("[v0] Scrolled to week containing:", initialDate)
 
           // Clean up URL parameter after scrolling
           setTimeout(() => {
@@ -178,7 +169,7 @@ export function FlipbookView({
           }, 500)
         }
       } catch (error) {
-        console.error("[v0] Error parsing initialDate:", error)
+        // Error parsing initialDate handled here
       }
     }
   }, [initialDate, router])
@@ -391,13 +382,6 @@ export function FlipbookView({
     const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
     const monday = subDays(date, daysToSubtract)
 
-    console.log("[v0] Jump to date:", {
-      selectedDate: format(date, "yyyy-MM-dd (EEEE)", { locale: tr }),
-      calculatedMonday: format(monday, "yyyy-MM-dd (EEEE)", { locale: tr }),
-      dayOfWeek,
-      daysToSubtract,
-    })
-
     setCurrentWeekStart(monday)
     setIsCalendarOpen(false)
   }, [])
@@ -520,14 +504,6 @@ export function FlipbookView({
     const filtered = surgeries.filter(
       (surgery) => surgery.surgery_date === dateKey && surgery.salon_id === selectedSalonId,
     )
-    if (filtered.length > 0) {
-      console.log("[v0] getSurgeriesForDay:", {
-        day: dateKey,
-        selectedSalonId,
-        foundCount: filtered.length,
-        patientNames: filtered.map((s) => s.patient_name),
-      })
-    }
     return filtered
   }
 
@@ -549,7 +525,6 @@ export function FlipbookView({
 
       // Save current view state before reload
       const safeDate = getSafeCurrentWeekStart()
-      // </CHANGE> Fixed typo: JSON.JSON.stringify -> JSON.stringify
       sessionStorage.setItem(
         "flipbook_scroll_target",
         JSON.stringify({
@@ -613,10 +588,9 @@ export function FlipbookView({
         if (salonId && salonId !== selectedSalonId) {
           setSelectedSalonId(salonId)
         }
-        console.log("[v0] Navigated to patient date:", date, "salon:", salonId)
       }
     } catch (error) {
-      console.error("[v0] Error navigating to patient:", error)
+      // Error navigating to patient handled here
     }
   }
 
@@ -675,17 +649,16 @@ export function FlipbookView({
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <div className="text-xs md:text-sm text-center font-semibold whitespace-nowrap">
-                  {filterMode && weekDays.length > 0 ? (
+                  {filterMode && weekDays && weekDays.length > 0 ? (
                     <>
-                      {format(weekDays[0], "d MMM", { locale: tr })} -{" "}
+                      {format(weekDays[0], "d MMM yyyy", { locale: tr })} -{" "}
                       {format(weekDays[weekDays.length - 1], "d MMM yyyy", { locale: tr })}
                     </>
-                  ) : isValid(safeWeekStart) && isValid(weekEnd) ? (
-                    <>
-                      {format(safeWeekStart, "d MMM", { locale: tr })} - {format(weekEnd, "d MMM yyyy", { locale: tr })}
-                    </>
                   ) : (
-                    "Tarih yükleniyor..."
+                    <>
+                      {format(safeWeekStart, "d MMM yyyy", { locale: tr })} -{" "}
+                      {format(weekEnd, "d MMM yyyy", { locale: tr })}
+                    </>
                   )}
                 </div>
                 <Button

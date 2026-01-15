@@ -63,6 +63,7 @@ export function getDoctorColor(index: number) {
 }
 
 export function getDoctorColorById(doctorId: string, selectedDoctors: string[]) {
+  if (!selectedDoctors) return null
   const index = selectedDoctors.indexOf(doctorId)
   if (index === -1) return null
   return getDoctorColor(index)
@@ -78,15 +79,17 @@ interface DoctorFilterProps {
 export function DoctorFilter({ doctors, selectedDoctors, onSelectionChange, multiSelect = true }: DoctorFilterProps) {
   const [isOpen, setIsOpen] = useState(false)
 
+  const safeDoctors = selectedDoctors || []
+
   const handleDoctorToggle = (doctorId: string) => {
     if (multiSelect) {
-      if (selectedDoctors.includes(doctorId)) {
-        onSelectionChange(selectedDoctors.filter((id) => id !== doctorId))
+      if (safeDoctors.includes(doctorId)) {
+        onSelectionChange(safeDoctors.filter((id) => id !== doctorId))
       } else {
-        onSelectionChange([...selectedDoctors, doctorId])
+        onSelectionChange([...safeDoctors, doctorId])
       }
     } else {
-      if (selectedDoctors.includes(doctorId)) {
+      if (safeDoctors.includes(doctorId)) {
         onSelectionChange([])
       } else {
         onSelectionChange([doctorId])
@@ -105,17 +108,15 @@ export function DoctorFilter({ doctors, selectedDoctors, onSelectionChange, mult
           variant="outline"
           size="sm"
           className={`gap-2 ${
-            selectedDoctors.length > 0
+            safeDoctors.length > 0
               ? "bg-blue-500/30 border-blue-400 text-white"
               : "bg-gray-200 dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-white/20"
           }`}
         >
           <Filter className="h-4 w-4" />
           <span className="hidden sm:inline">Hoca Filtresi</span>
-          {selectedDoctors.length > 0 && (
-            <span className="bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5 ml-1">
-              {selectedDoctors.length}
-            </span>
+          {safeDoctors.length > 0 && (
+            <span className="bg-blue-500 text-white text-xs rounded-full px-1.5 py-0.5 ml-1">{safeDoctors.length}</span>
           )}
         </Button>
       </PopoverTrigger>
@@ -123,7 +124,7 @@ export function DoctorFilter({ doctors, selectedDoctors, onSelectionChange, mult
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-sm dark:text-slate-100">Hoca Seçimi</h4>
-            {selectedDoctors.length > 0 && (
+            {safeDoctors.length > 0 && (
               <Button variant="ghost" size="sm" onClick={clearAll} className="h-6 px-2 text-xs dark:text-slate-100">
                 <X className="h-3 w-3 mr-1" />
                 Temizle
@@ -132,8 +133,8 @@ export function DoctorFilter({ doctors, selectedDoctors, onSelectionChange, mult
           </div>
           <div className="space-y-2 max-h-60 overflow-y-auto">
             {doctors.map((doctor) => {
-              const isSelected = selectedDoctors.includes(doctor.id)
-              const colorIndex = selectedDoctors.indexOf(doctor.id)
+              const isSelected = safeDoctors.includes(doctor.id)
+              const colorIndex = safeDoctors.indexOf(doctor.id)
               const color = colorIndex >= 0 ? getDoctorColor(colorIndex) : null
 
               return (
