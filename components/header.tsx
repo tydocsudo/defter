@@ -5,6 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { UserProfileMenu } from "@/components/user-profile-menu"
+import { InstallPWAButton } from "@/components/install-pwa-button"
 
 export async function Header() {
   const user = await getCurrentUser()
@@ -44,6 +45,7 @@ export async function Header() {
           </Link>
         </div>
         <div className="flex items-center gap-2 md:gap-4">
+          <InstallPWAButton />
           <ThemeToggle />
           {user?.is_admin && (
             <Link href="/admin">

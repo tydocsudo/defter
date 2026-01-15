@@ -47,10 +47,8 @@ import { useRouter } from "next/navigation"
 import { WaitingListSidebar } from "@/components/calendar/waiting-list-sidebar"
 import { approveSurgery, unapproveSurgery } from "@/lib/actions/surgeries"
 import { FlipbookOperationsList } from "./flipbook-operations-list"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DoctorFilter } from "@/components/doctor-filter"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
 import { PatientSearch } from "@/components/patient-search"
 import { SurgeryForm } from "@/components/surgery-form"
 import {
@@ -175,24 +173,52 @@ export function FlipbookView({
   const weekEnd = filterMode && weekDays.length > 0 ? weekDays[weekDays.length - 1] : addDays(safeWeekStart, 4)
 
   useEffect(() => {
-    if (selectedSalonId && weekDays.length > 0) {
+    if (!selectedSalonId || weekDays.length === 0) return
+
+    // Debounce the fetch to prevent rate limiting
+    const timeoutId = setTimeout(() => {
       const startDate = format(weekDays[0], "yyyy-MM-dd")
       const endDate = format(weekDays[weekDays.length - 1], "yyyy-MM-dd")
 
       fetch(`/api/assigned-doctors?salon_id=${selectedSalonId}&start_date=${startDate}&end_date=${endDate}`)
-        .then((res) => res.json())
-        .then((data) => {
-          const doctorMap: Record<string, string> = {}
-          data.forEach((assignment: any) => {
-            if (assignment.doctor && assignment.assigned_date) {
-              doctorMap[assignment.assigned_date] = assignment.doctor.name
+        .then(async (res) => {
+          // Check if response is ok and is JSON
+          if (!res.ok) {
+            if (res.status === 429) {
+              console.warn("[v0] Rate limit exceeded for assigned doctors")
+              return []
             }
-          })
-          setAssignedDoctors(doctorMap)
+            throw new Error(`HTTP ${res.status}`)
+          }
+
+          const contentType = res.headers.get("content-type")
+          if (!contentType || !contentType.includes("application/json")) {
+            console.warn("[v0] Assigned doctors API returned non-JSON response")
+            return []
+          }
+
+          return res.json()
         })
-        .catch((err) => console.error("Error fetching assigned doctors:", err))
-    }
-    // </CHANGE> Changed dependency to underlying state variables
+        .then((data) => {
+          if (Array.isArray(data)) {
+            const doctorMap: Record<string, string> = {}
+            data.forEach((assignment: any) => {
+              if (assignment.doctor && assignment.assigned_date) {
+                doctorMap[assignment.assigned_date] = assignment.doctor.name
+              }
+            })
+            setAssignedDoctors(doctorMap)
+          }
+        })
+        .catch((err) => {
+          // Silently handle errors to prevent console spam
+          if (err.message !== "HTTP 429") {
+            console.error("[v0] Error fetching assigned doctors:", err)
+          }
+        })
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timeoutId)
   }, [selectedSalonId, currentWeekStart, filterMode, filteredDates, filteredDatePage, weekDays]) // Added weekDays to dependency array
 
   useEffect(() => {
@@ -254,12 +280,11 @@ export function FlipbookView({
         return
       }
 
-      // Single doctor selection - apply filter directly to current salon
       setFilterDoctorId(doctorIds[0])
-      setFilterSalonIds([selectedSalonId]) // Initially filter for the current selected salon
-      setShowSalonDialog(true) // Show dialog to select multiple salons
-      setPendingDoctorId(doctorIds[0]) // Store the selected doctor ID
+      setFilterSalonIds([selectedSalonId]) // Filter for the current selected salon only
+      setPendingDoctorId(doctorIds[0])
       setFilterMode(true)
+      // </CHANGE> Removed setShowSalonDialog(true)
     }
   }
 
@@ -1155,51 +1180,9 @@ export function FlipbookView({
         />
       )}
 
-      <Dialog open={showSalonDialog} onOpenChange={setShowSalonDialog}>
-        <DialogContent className="dark:bg-slate-800 dark:text-slate-100">
-          <DialogHeader>
-            <DialogTitle>Salon Seçimi</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground dark:text-slate-400">
-              Filtrelemek istediğiniz salonları seçin:
-            </p>
-            <div className="space-y-2">
-              {salons.map((salon) => (
-                <div key={salon.id} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`salon-${salon.id}`}
-                    checked={filterSalonIds.includes(salon.id)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setFilterSalonIds([...filterSalonIds, salon.id])
-                      } else {
-                        setFilterSalonIds(filterSalonIds.filter((id) => id !== salon.id))
-                      }
-                    }}
-                    className="dark:bg-slate-700"
-                  />
-                  <Label htmlFor={`salon-${salon.id}`} className="dark:text-slate-100">
-                    {salon.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSalonDialog(false)} className="dark:text-slate-100">
-              İptal
-            </Button>
-            <Button
-              onClick={handleSalonFilterConfirm}
-              disabled={filterSalonIds.length === 0}
-              className="dark:text-slate-100"
-            >
-              Uygula
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* <Dialog open={showSalonDialog} onOpenChange={setShowSalonDialog}>
+        ... dialog content ...
+      </Dialog> */}
     </div>
   )
 }

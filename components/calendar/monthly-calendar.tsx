@@ -302,7 +302,7 @@ export function MonthlyCalendar({
 
       {expandedDate && (
         <Dialog open={!!expandedDate} onOpenChange={() => setExpandedDate(null)}>
-          <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {new Date(expandedDate).toLocaleDateString("tr-TR", {
@@ -313,22 +313,110 @@ export function MonthlyCalendar({
                 })}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {dayNotes.filter((note) => note.note_date === expandedDate).length > 0 && (
+                <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                  <CardContent className="p-4">
+                    <h4 className="font-bold text-lg text-amber-700 dark:text-amber-400 mb-3">📝 Gün Notları</h4>
+                    <div className="space-y-2">
+                      {dayNotes
+                        .filter((note) => note.note_date === expandedDate)
+                        .map((dayNote) => (
+                          <div key={dayNote.id} className="bg-white dark:bg-amber-900/30 rounded p-3 text-sm">
+                            <p className="whitespace-pre-wrap text-amber-900 dark:text-amber-100">{dayNote.note}</p>
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                              {new Date(dayNote.created_at).toLocaleDateString("tr-TR", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {getSurgeriesForDay(Number.parseInt(expandedDate.split("-")[2])).map((surgery) => (
                 <Card key={surgery.id}>
                   <CardContent className="p-4">
-                    <h4 className="font-bold text-blue-600 dark:text-blue-400 mb-2">{surgery.procedure_name}</h4>
-                    <div className="space-y-1 text-sm">
-                      <p>
-                        <strong>Hasta:</strong> {surgery.patient_name}
-                      </p>
-                      <p>
-                        <strong>Protokol:</strong> {surgery.protocol_number}
-                      </p>
-                      <p>
-                        <strong>Endikasyon:</strong> {surgery.indication}
-                      </p>
+                    <div className="flex items-start justify-between mb-3">
+                      <h4 className="font-bold text-lg text-blue-600 dark:text-blue-400">{surgery.procedure_name}</h4>
+                      {surgery.is_approved && (
+                        <Badge variant="default" className="bg-green-600">
+                          Onaylandı
+                        </Badge>
+                      )}
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Hasta Adı</p>
+                          <p className="font-semibold">{surgery.patient_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Protokol No</p>
+                          <p className="font-semibold">{surgery.protocol_number}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Telefon 1</p>
+                          <p className="font-medium">{surgery.phone_number_1 || "-"}</p>
+                        </div>
+                        {surgery.phone_number_2 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Telefon 2</p>
+                            <p className="font-medium">{surgery.phone_number_2}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Endikasyon</p>
+                          <p className="font-medium">{surgery.indication}</p>
+                        </div>
+                        {surgery.responsible_doctor && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Sorumlu Hoca</p>
+                            <p className="font-semibold text-blue-600 dark:text-blue-400">
+                              {surgery.responsible_doctor.name}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-muted-foreground">Ameliyat Tarihi</p>
+                          <p className="font-medium">
+                            {surgery.surgery_date ? new Date(surgery.surgery_date).toLocaleDateString("tr-TR") : "-"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {surgery.surgery_notes && surgery.surgery_notes.length > 0 && (
+                      <div className="mt-4 pt-4 border-t">
+                        <p className="text-xs text-muted-foreground mb-2">Notlar</p>
+                        <div className="space-y-2">
+                          {surgery.surgery_notes.map((note) => (
+                            <div key={note.id} className="bg-muted/50 rounded p-2 text-sm">
+                              <p className="whitespace-pre-wrap">{note.note}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {new Date(note.created_at).toLocaleDateString("tr-TR", {
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

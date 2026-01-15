@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea"
 import { deleteSurgery, moveToWaitingList } from "@/lib/actions/surgeries"
 import { createSurgeryNote } from "@/lib/actions/notes"
-import { MoreHorizontal, Trash2, MessageSquare, ListX, FileDown, Edit, Phone } from "lucide-react"
+import { MoreHorizontal, Trash2, MessageSquare, ListX, Edit, Phone } from "lucide-react"
 import { formatDateTurkish } from "@/lib/utils"
 import { SurgeryFormEdit } from "@/components/surgery-form-edit"
 
@@ -82,11 +82,6 @@ export function DailyOperationsList({
     }
   }
 
-  const handleExportPDF = () => {
-    const url = `/api/pdf/daily-list?salon_id=${salonId}&date=${date}`
-    window.open(url, "_blank")
-  }
-
   return (
     <>
       <Card>
@@ -95,10 +90,6 @@ export function DailyOperationsList({
             <CardTitle>
               {salon?.name} - {formatDateTurkish(date)}
             </CardTitle>
-            <Button onClick={handleExportPDF} className="gap-2">
-              <FileDown className="h-4 w-4" />
-              PDF İndir
-            </Button>
           </div>
         </CardHeader>
         <CardContent>

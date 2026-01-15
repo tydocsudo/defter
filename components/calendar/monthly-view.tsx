@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react"
 import { MonthlyCalendar } from "./monthly-calendar"
-import { WaitingListSidebar } from "./waiting-list-sidebar"
 import { FlipbookOperationsList } from "@/components/flipbook/flipbook-operations-list"
 import { DoctorFilter } from "@/components/doctor-filter"
 import { format } from "date-fns"
@@ -149,206 +148,101 @@ export function MonthlyView({
   return (
     <div className="space-y-3 sm:space-y-4 md:space-y-6">
       <div className="flex flex-col gap-4">
-        <div className="hidden lg:flex lg:flex-row gap-4">
-          <div className="lg:w-80 flex-shrink-0">
-            <WaitingListSidebar salons={salons} doctors={doctors} onDataChange={fetchData} />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <Card className="mx-px my-0 px-0 leading-7 border-4">
-              <CardHeader>
-                <div className="flex flex-col space-y-3 sm:space-y-4">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
-                    <CardTitle className="text-sm sm:text-base md:text-lg flex-shrink-0">Aylık Takvim</CardTitle>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <DoctorFilter
-                        doctors={doctors}
-                        selectedDoctors={filteredDoctors}
-                        onSelectionChange={setFilteredDoctors}
-                        multiSelect={true}
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handlePreviousMonth}
-                        className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 bg-transparent"
-                      >
-                        <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
-                      <span className="text-xs sm:text-sm md:text-base font-medium whitespace-nowrap min-w-[110px] sm:min-w-[130px] text-center">
-                        {monthNames[currentMonth]} {currentYear}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleNextMonth}
-                        className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 bg-transparent"
-                      >
-                        <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <Select value={selectedSalon} onValueChange={setSelectedSalon}>
-                    <SelectTrigger className="w-full sm:w-auto">
-                      <SelectValue placeholder="Salon Seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {salons.map((salon) => (
-                        <SelectItem key={salon.id} value={salon.id}>
-                          {salon.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardHeader>
-              <CardContent className="p-2 sm:p-3 md:p-4">
-                {isLoading ? (
-                  <div className="text-center py-8 sm:py-12 text-muted-foreground text-sm">Yükleniyor...</div>
-                ) : (
-                  <MonthlyCalendar
-                    currentDate={currentDate}
-                    surgeries={surgeries}
-                    dayNotes={dayNotes}
-                    assignedDoctors={assignedDoctors}
-                    selectedDate={selectedDate}
-                    onDateSelect={handleDateSelect}
+        <Card className="mx-px my-0 px-0 leading-7 border-4">
+          <CardHeader>
+            <div className="flex flex-col space-y-3 sm:space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+                <CardTitle className="text-sm sm:text-base md:text-lg flex-shrink-0">Aylık Takvim</CardTitle>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <DoctorFilter
                     doctors={doctors}
-                    isAdmin={isAdmin}
-                    salonId={selectedSalon}
-                    onDataChange={fetchData}
-                    filteredDoctors={filteredDoctors}
+                    selectedDoctors={filteredDoctors}
+                    onSelectionChange={setFilteredDoctors}
+                    multiSelect={true}
                   />
-                )}
-              </CardContent>
-            </Card>
-
-            {selectedDate && (
-              <Card className="mt-4">
-                <CardHeader className="pb-3">
                   <Button
-                    variant="ghost"
-                    onClick={() => setShowOperationsList(!showOperationsList)}
-                    className="w-full flex items-center justify-between hover:bg-muted"
+                    variant="outline"
+                    size="icon"
+                    onClick={handlePreviousMonth}
+                    className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 bg-transparent"
                   >
-                    <div className="text-base">
-                      Günlük Ameliyat Listesi - {format(new Date(selectedDate), "d MMMM yyyy EEEE", { locale: tr })}
-                    </div>
-                    {showOperationsList ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
-                </CardHeader>
-                {showOperationsList && (
-                  <CardContent>
-                    <FlipbookOperationsList
-                      selectedDate={new Date(selectedDate)}
-                      surgeries={surgeries}
-                      doctors={doctors}
-                      salons={salons}
-                      onDataChange={fetchData}
-                    />
-                  </CardContent>
-                )}
-              </Card>
-            )}
-          </div>
-        </div>
-
-        <div className="lg:hidden">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col space-y-3">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                  <CardTitle className="text-sm sm:text-base flex-shrink-0">Aylık Takvim</CardTitle>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <DoctorFilter
-                      doctors={doctors}
-                      selectedDoctors={filteredDoctors}
-                      onSelectionChange={setFilteredDoctors}
-                      multiSelect={true}
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePreviousMonth}
-                      className="h-8 w-8 bg-transparent"
-                    >
-                      <ChevronLeft className="h-3 w-3" />
-                    </Button>
-                    <span className="text-xs font-medium whitespace-nowrap min-w-[110px] text-center">
-                      {monthNames[currentMonth]} {currentYear}
-                    </span>
-                    <Button variant="outline" size="icon" onClick={handleNextMonth} className="h-8 w-8 bg-transparent">
-                      <ChevronRight className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <span className="text-xs sm:text-sm md:text-base font-medium whitespace-nowrap min-w-[110px] sm:min-w-[130px] text-center">
+                    {monthNames[currentMonth]} {currentYear}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleNextMonth}
+                    className="h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 bg-transparent"
+                  >
+                    <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                  </Button>
                 </div>
-                <Select value={selectedSalon} onValueChange={setSelectedSalon}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue placeholder="Salon Seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {salons.map((salon) => (
-                      <SelectItem key={salon.id} value={salon.id}>
-                        {salon.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
+              <Select value={selectedSalon} onValueChange={setSelectedSalon}>
+                <SelectTrigger className="w-full sm:w-auto">
+                  <SelectValue placeholder="Salon Seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {salons.map((salon) => (
+                    <SelectItem key={salon.id} value={salon.id}>
+                      {salon.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
+          <CardContent className="p-2 sm:p-3 md:p-4">
+            {isLoading ? (
+              <div className="text-center py-8 sm:py-12 text-muted-foreground text-sm">Yükleniyor...</div>
+            ) : (
+              <MonthlyCalendar
+                currentDate={currentDate}
+                surgeries={surgeries}
+                dayNotes={dayNotes}
+                assignedDoctors={assignedDoctors}
+                selectedDate={selectedDate}
+                onDateSelect={handleDateSelect}
+                doctors={doctors}
+                isAdmin={isAdmin}
+                salonId={selectedSalon}
+                onDataChange={fetchData}
+                filteredDoctors={filteredDoctors}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        {selectedDate && (
+          <Card className="mt-4">
+            <CardHeader className="pb-3">
+              <Button
+                variant="ghost"
+                onClick={() => setShowOperationsList(!showOperationsList)}
+                className="w-full flex items-center justify-between hover:bg-muted"
+              >
+                <div className="text-base">
+                  Günlük Ameliyat Listesi - {format(new Date(selectedDate), "d MMMM yyyy EEEE", { locale: tr })}
+                </div>
+                {showOperationsList ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
             </CardHeader>
-            <CardContent className="p-1">
-              {isLoading ? (
-                <div className="text-center py-8 text-muted-foreground text-sm">Yükleniyor...</div>
-              ) : (
-                <MonthlyCalendar
-                  currentDate={currentDate}
+            {showOperationsList && (
+              <CardContent>
+                <FlipbookOperationsList
+                  selectedDate={new Date(selectedDate)}
                   surgeries={surgeries}
-                  dayNotes={dayNotes}
-                  assignedDoctors={assignedDoctors}
-                  selectedDate={selectedDate}
-                  onDateSelect={handleDateSelect}
                   doctors={doctors}
-                  isAdmin={isAdmin}
-                  salonId={selectedSalon}
+                  salons={salons}
                   onDataChange={fetchData}
-                  filteredDoctors={filteredDoctors}
                 />
-              )}
-            </CardContent>
+              </CardContent>
+            )}
           </Card>
-
-          {selectedDate && (
-            <Card className="mt-4">
-              <CardHeader className="pb-3">
-                <Button
-                  variant="ghost"
-                  onClick={() => setShowOperationsList(!showOperationsList)}
-                  className="w-full flex items-center justify-between hover:bg-muted p-2"
-                >
-                  <div className="text-sm font-semibold text-left">
-                    Günlük Liste - {format(new Date(selectedDate), "d MMM", { locale: tr })}
-                  </div>
-                  {showOperationsList ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </Button>
-              </CardHeader>
-              {showOperationsList && (
-                <CardContent className="p-2">
-                  <FlipbookOperationsList
-                    selectedDate={new Date(selectedDate)}
-                    surgeries={surgeries}
-                    doctors={doctors}
-                    salons={salons}
-                    onDataChange={fetchData}
-                  />
-                </CardContent>
-              )}
-            </Card>
-          )}
-
-          <div className="mt-4">
-            <WaitingListSidebar salons={salons} doctors={doctors} onDataChange={fetchData} />
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )

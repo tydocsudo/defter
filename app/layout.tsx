@@ -12,6 +12,12 @@ export const metadata: Metadata = {
   title: "Ameliyat Planlama Sistemi",
   description: "Hastane ameliyathaneleri için kapsamlı ameliyat planlama ve takip sistemi",
   generator: "v0.app",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Ameliyat Planlama",
+  },
   icons: {
     icon: [
       {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import type { SurgeryWithDetails, Doctor, Salon } from "@/lib/types"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { assignFromWaitingList, deleteSurgery } from "@/lib/actions/surgeries"
-import { Calendar, MoreHorizontal, Trash2, MessageSquare, Wand2, AlertCircle } from "lucide-react"
+import { Calendar, MoreHorizontal, Trash2, MessageSquare, Wand2, AlertCircle, ArrowUpDown } from "lucide-react"
 import { SurgeryForm } from "@/components/surgery-form"
 import { Textarea } from "@/components/ui/textarea"
 import { createSurgeryNote } from "@/lib/actions/notes"
@@ -26,12 +26,16 @@ import { findAvailableDates } from "@/lib/actions/auto-scheduler"
 import { AvailableSlotsDialog } from "@/components/waiting-list/available-slots-dialog"
 import { Badge } from "@/components/ui/badge"
 import { DoctorFilter } from "@/components/doctor-filter"
+import { Search, X, User } from "lucide-react"
 
 interface WaitingListTableProps {
   surgeries: SurgeryWithDetails[]
   doctors: Doctor[]
   salons: Salon[]
 }
+
+type SortColumn = "patient_name" | "protocol_number" | "procedure_name" | "doctor" | "created_at"
+type SortDirection = "asc" | "desc" | null
 
 const getMinDate = () => {
   const today = new Date()
@@ -66,6 +70,10 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
   const [autoFindStep, setAutoFindStep] = useState<"patient" | "salon" | "doctor" | "results">("patient")
   const [dateError, setDateError] = useState<string | null>(null)
   const [selectedDoctors, setSelectedDoctors] = useState<string[]>([])
+  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
+  const [dynamicSalons, setDynamicSalons] = useState<Salon[]>(salons)
+  const [isFetchingSalons, setIsFetchingSalons] = useState(false)
 
   const router = useRouter()
 
@@ -178,10 +186,73 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
     }
   }
 
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc")
+      } else if (sortDirection === "desc") {
+        setSortColumn(null)
+        setSortDirection(null)
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection("asc")
+    }
+  }
+
   const filteredSurgeries =
     selectedDoctors.length > 0
       ? surgeries.filter((s) => s.responsible_doctor_id && selectedDoctors.includes(s.responsible_doctor_id))
       : surgeries
+
+  const sortedSurgeries = [...filteredSurgeries].sort((a, b) => {
+    if (!sortColumn || !sortDirection) return 0
+
+    let compareResult = 0
+
+    switch (sortColumn) {
+      case "patient_name":
+        compareResult = a.patient_name.localeCompare(b.patient_name, "tr-TR")
+        break
+      case "protocol_number":
+        compareResult = a.protocol_number.localeCompare(b.protocol_number)
+        break
+      case "procedure_name":
+        compareResult = a.procedure_name.localeCompare(b.procedure_name, "tr-TR")
+        break
+      case "doctor":
+        const doctorA = a.responsible_doctor?.name || ""
+        const doctorB = b.responsible_doctor?.name || ""
+        compareResult = doctorA.localeCompare(doctorB, "tr-TR")
+        break
+      case "created_at":
+        compareResult = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        break
+    }
+
+    return sortDirection === "asc" ? compareResult : -compareResult
+  })
+
+  useEffect(() => {
+    const fetchSalons = async () => {
+      if (selectedSurgery && !isFetchingSalons) {
+        setIsFetchingSalons(true)
+        try {
+          const response = await fetch("/api/salons")
+          if (response.ok) {
+            const data = await response.json()
+            setDynamicSalons(data)
+          }
+        } catch (error) {
+          console.error("Error fetching salons:", error)
+        } finally {
+          setIsFetchingSalons(false)
+        }
+      }
+    }
+
+    fetchSalons()
+  }, [selectedSurgery])
 
   return (
     <>
@@ -231,18 +302,58 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="dark:text-slate-100">Hasta Adı</TableHead>
-                <TableHead className="dark:text-slate-100">Protokol No</TableHead>
-                <TableHead className="dark:text-slate-100">Yapılacak İşlem</TableHead>
-                <TableHead className="dark:text-slate-100">Sorumlu Hoca</TableHead>
+                <TableHead
+                  className="dark:text-slate-100 cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort("patient_name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Hasta Adı
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="dark:text-slate-100 cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort("protocol_number")}
+                >
+                  <div className="flex items-center gap-1">
+                    Protokol No
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="dark:text-slate-100 cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort("procedure_name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Yapılacak İşlem
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="dark:text-slate-100 cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort("doctor")}
+                >
+                  <div className="flex items-center gap-1">
+                    Sorumlu Hoca
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
                 <TableHead className="dark:text-slate-100">Telefon</TableHead>
                 <TableHead className="dark:text-slate-100">Ekleyen</TableHead>
-                <TableHead className="dark:text-slate-100">Eklenme Tarihi</TableHead>
+                <TableHead
+                  className="dark:text-slate-100 cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort("created_at")}
+                >
+                  <div className="flex items-center gap-1">
+                    Eklenme Tarihi
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </TableHead>
                 <TableHead className="text-right dark:text-slate-100">İşlemler</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSurgeries.map((surgery) => (
+              {sortedSurgeries.map((surgery) => (
                 <TableRow key={surgery.id}>
                   <TableCell className="font-medium dark:text-slate-100">{surgery.patient_name}</TableCell>
                   <TableCell className="dark:text-slate-100">{surgery.protocol_number}</TableCell>
@@ -312,12 +423,12 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="assign_salon">Salon</Label>
-              <Select value={assignSalonId} onValueChange={setAssignSalonId}>
+              <Select value={assignSalonId} onValueChange={setAssignSalonId} disabled={isFetchingSalons}>
                 <SelectTrigger id="assign_salon">
-                  <SelectValue placeholder="Salon seçin" />
+                  <SelectValue placeholder={isFetchingSalons ? "Salonlar yükleniyor..." : "Salon seçin"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {salons.map((salon) => (
+                  {dynamicSalons.map((salon) => (
                     <SelectItem key={salon.id} value={salon.id}>
                       {salon.name}
                     </SelectItem>
@@ -348,7 +459,7 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
             <Button variant="outline" onClick={() => setSelectedSurgery(null)} disabled={isAssigning}>
               İptal
             </Button>
-            <Button onClick={handleAssign} disabled={isAssigning || !assignSalonId || !assignDate}>
+            <Button onClick={handleAssign} disabled={isAssigning || !assignSalonId || !assignDate || isFetchingSalons}>
               {isAssigning ? "Atanıyor..." : "Ata"}
             </Button>
           </DialogFooter>
@@ -412,7 +523,7 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
                     : "Uygun Tarihler"}
             </DialogTitle>
             <DialogDescription>
-              {autoFindStep === "patient" && "Otomatik tarih bulunacak hastayı seçin"}
+              {autoFindStep === "patient" && "Bekleme listesinden hasta arayın ve seçin"}
               {autoFindStep === "salon" && "Hastanız için ameliyat yapılacak salonu seçin"}
               {autoFindStep === "doctor" && "Ameliyatı yapacak hocayı seçin"}
               {autoFindStep === "results" && "Uygun tarihleri görüntüleyin ve seçin"}
@@ -422,26 +533,18 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
           {autoFindStep === "patient" && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="auto_patient">Hasta</Label>
-                <Select value={selectedPatientForAutoFind || ""} onValueChange={setSelectedPatientForAutoFind}>
-                  <SelectTrigger id="auto_patient">
-                    <SelectValue placeholder="Hasta seçin">
-                      {selectedPatientForAutoFind &&
-                        surgeries.find((s) => s.id === selectedPatientForAutoFind)?.patient_name}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {surgeries.map((surgery) => (
-                      <SelectItem key={surgery.id} value={surgery.id}>
-                        <div className="flex flex-col gap-0.5 py-1">
-                          <span className="font-medium text-sm">{surgery.patient_name}</span>
-                          <span className="text-xs text-gray-600">{surgery.procedure_name}</span>
-                          <span className="text-xs text-gray-400">{surgery.protocol_number}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Hasta Ara ve Seç</Label>
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Aşağıdaki arama kutusunu kullanarak bekleme listesinden hasta arayın
+                  </p>
+                  <WaitingListPatientSearch
+                    onSelectPatient={(patientId: string) => {
+                      setSelectedPatientForAutoFind(patientId)
+                    }}
+                    surgeries={surgeries}
+                  />
+                </div>
               </div>
               {selectedPatientForAutoFind && (
                 <div className="border rounded-lg p-4 bg-gray-50">
@@ -562,5 +665,123 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
         isWaitingList={true}
       />
     </>
+  )
+}
+
+function WaitingListPatientSearch({
+  onSelectPatient,
+  surgeries,
+}: {
+  onSelectPatient: (patientId: string) => void
+  surgeries: SurgeryWithDetails[]
+}) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<SurgeryWithDetails[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+
+  useEffect(() => {
+    const searchWaitingListPatients = async () => {
+      if (searchQuery.length < 2) {
+        setSearchResults([])
+        setIsOpen(false)
+        return
+      }
+
+      setIsSearching(true)
+      setIsOpen(true)
+
+      // Filter locally from waiting list surgeries
+      const query = searchQuery.toLowerCase()
+      const filtered = surgeries.filter(
+        (s) =>
+          s.patient_name.toLowerCase().includes(query) ||
+          s.protocol_number?.toLowerCase().includes(query) ||
+          s.indication?.toLowerCase().includes(query) ||
+          s.procedure_name?.toLowerCase().includes(query),
+      )
+
+      setSearchResults(filtered.slice(0, 10))
+      setIsSearching(false)
+    }
+
+    const debounceTimer = setTimeout(searchWaitingListPatients, 300)
+    return () => clearTimeout(debounceTimer)
+  }, [searchQuery, surgeries])
+
+  const handleSelectPatient = (surgery: SurgeryWithDetails) => {
+    onSelectPatient(surgery.id)
+    setSearchQuery("")
+    setSearchResults([])
+    setIsOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder="Hasta adı, protokol, işlem ara..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-8"
+        />
+        {searchQuery && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+            onClick={() => {
+              setSearchQuery("")
+              setSearchResults([])
+              setIsOpen(false)
+            }}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
+      </div>
+
+      {isOpen && searchResults.length > 0 && (
+        <div className="absolute top-full mt-1 bg-white rounded-lg shadow-xl border z-50 max-h-[300px] overflow-y-auto w-full">
+          {searchResults.map((surgery) => (
+            <button
+              key={surgery.id}
+              className="w-full p-3 text-left hover:bg-slate-50 border-b last:border-b-0 transition-colors"
+              onClick={() => handleSelectPatient(surgery)}
+            >
+              <div className="flex items-start gap-2">
+                <User className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-slate-900 truncate">{surgery.patient_name}</p>
+                  {surgery.protocol_number && (
+                    <p className="text-xs text-slate-500">Protokol: {surgery.protocol_number}</p>
+                  )}
+                  {surgery.indication && <p className="text-xs text-slate-600 truncate">{surgery.indication}</p>}
+                  {surgery.procedure_name && (
+                    <p className="text-xs text-purple-600 truncate font-medium">{surgery.procedure_name}</p>
+                  )}
+                  {surgery.responsible_doctor && (
+                    <p className="text-xs text-orange-600 truncate">{surgery.responsible_doctor.name}</p>
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isOpen && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+        <div className="absolute top-full mt-1 bg-white rounded-lg shadow-xl border z-50 p-4 text-center text-slate-500 text-sm w-full">
+          Hasta bulunamadı
+        </div>
+      )}
+
+      {isSearching && (
+        <div className="absolute top-full mt-1 bg-white rounded-lg shadow-xl border z-50 p-4 text-center text-slate-500 text-sm w-full">
+          Aranıyor...
+        </div>
+      )}
+    </div>
   )
 }
