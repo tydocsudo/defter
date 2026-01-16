@@ -1,5 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -29,6 +30,14 @@ export const metadata: Metadata = {
   },
 }
 
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
+  )
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,7 +53,7 @@ export default function RootLayout({
           disableTransitionOnChange
           storageKey="surgery-calendar-theme"
         >
-          {children}
+          <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
         </ThemeProvider>
         <Analytics />
       </body>

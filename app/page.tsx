@@ -49,7 +49,7 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header user={user} />
       <main className="container mx-auto px-2 sm:px-4 py-4 md:py-6">
         <div className="flex flex-col gap-3 mb-4 md:mb-6">
           <div>

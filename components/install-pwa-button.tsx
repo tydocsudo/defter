@@ -14,8 +14,21 @@ export function InstallPWAButton() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showIOSInstructions, setShowIOSInstructions] = useState(false)
   const [isInstalled, setIsInstalled] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [isIOS, setIsIOS] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+
+    // Check if mobile device
+    const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    setIsMobile(mobile)
+
+    // Check if iOS
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent)
+    setIsIOS(ios)
+
     // Check if already installed
     if (window.matchMedia("(display-mode: standalone)").matches) {
       setIsInstalled(true)
@@ -44,18 +57,13 @@ export function InstallPWAButton() {
         setDeferredPrompt(null)
         setIsInstalled(true)
       }
-    } else if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    } else if (isIOS) {
       // iOS - show instructions
       setShowIOSInstructions(true)
     }
   }
 
-  // Don't show if already installed or not supported
-  if (isInstalled) return null
-
-  // Only show on mobile devices
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  if (!isMobile) return null
+  if (!mounted || isInstalled || !isMobile) return null
 
   return (
     <>
@@ -83,13 +91,13 @@ export function InstallPWAButton() {
               <p className="font-semibold">iOS için talimatlar:</p>
               <ol className="list-decimal list-inside space-y-2 text-sm">
                 <li>
-                  Safari tarayıcısının altındaki <strong>Paylaş</strong> düğmesine dokunun (⬆️ ikonu)
+                  Safari tarayıcısının altındaki <strong>Paylaş</strong> düğmesine dokunun (kutu ve yukarı ok ikonu)
                 </li>
                 <li>
-                  Aşağı kaydırın ve <strong>"Ana Ekrana Ekle"</strong> seçeneğini bulun
+                  Aşağı kaydırın ve <strong>&quot;Ana Ekrana Ekle&quot;</strong> seçeneğini bulun
                 </li>
                 <li>
-                  <strong>"Ekle"</strong> düğmesine dokunun
+                  <strong>&quot;Ekle&quot;</strong> düğmesine dokunun
                 </li>
               </ol>
               <p className="text-xs text-muted-foreground mt-4">Not: Bu özellik sadece Safari tarayıcısında çalışır.</p>

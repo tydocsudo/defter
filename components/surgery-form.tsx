@@ -23,6 +23,7 @@ import { Wand2, AlertCircle, Loader2 } from "lucide-react"
 import { findAvailableDates } from "@/lib/actions/auto-scheduler"
 import { AvailableSlotsDialog } from "@/components/waiting-list/available-slots-dialog"
 import { useRouter } from "next/navigation"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface SurgeryFormProps {
   open: boolean
@@ -200,6 +201,7 @@ export function SurgeryForm({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    console.log("[v0] Form submit started, assignmentType:", assignmentType)
     setError(null)
 
     if (assignmentType === "salon") {
@@ -207,6 +209,8 @@ export function SurgeryForm({
       const selectedDate = formData.get("surgery_date") as string
       const doctorId = formData.get("responsible_doctor_id") as string
       const salonId = formData.get("salon_id") as string
+
+      console.log("[v0] Salon assignment - date:", selectedDate, "doctor:", doctorId, "salon:", salonId)
 
       if (!selectedDate || selectedDate.trim() === "") {
         setError("Salona atarken ameliyat tarihi zorunludur")
@@ -223,55 +227,26 @@ export function SurgeryForm({
         return
       }
 
-      // Check doctor assignment mismatch with timeout
-      if (doctorId && salonId && selectedDate) {
-        try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
-
-          const response = await fetch(
-            `/api/doctor-assigned-dates?doctorId=${doctorId}&salonId=${salonId}&checkDate=${selectedDate}`,
-            { signal: controller.signal },
-          )
-
-          clearTimeout(timeoutId)
-
-          if (response.ok) {
-            const data = await response.json()
-            if (data.success && data.assignedDoctor && data.assignedDoctor.id !== doctorId) {
-              const assignedDoctor = doctors.find((d) => d.id === data.assignedDoctor.id)
-              if (assignedDoctor) {
-                const confirmed = window.confirm(
-                  `Bu tarihe başka bir hoca atanmış: ${assignedDoctor.name}\n\nSeçtiğiniz hoca: ${doctors.find((d) => d.id === doctorId)?.name}\n\nYine de devam etmek istiyor musunuz?`,
-                )
-                if (!confirmed) {
-                  return
-                }
-              }
-            }
-          }
-        } catch (err) {
-          // Continue without check if API fails or times out
-          console.log("Doctor assignment check skipped due to timeout or error")
-        }
-      }
+      // The check was causing hangs due to API timeouts
     }
 
     // Handle surgery update
     if (surgery) {
+      console.log("[v0] Updating existing surgery")
       setIsLoading(true)
 
       try {
+        const formData = new FormData(e.currentTarget)
         const updatedData = {
-          patient_name: e.currentTarget.patient_name.value as string,
-          protocol_number: e.currentTarget.protocol_number.value as string,
-          indication: e.currentTarget.indication.value as string,
-          procedure_name: e.currentTarget.procedure_name.value as string,
-          responsible_doctor_id: (e.currentTarget.responsible_doctor_id.value as string) || null,
-          phone_number_1: e.currentTarget.phone_number_1.value as string,
-          phone_number_2: e.currentTarget.phone_number_2.value as string,
-          salon_id: assignmentType === "waiting" ? null : (e.currentTarget.salon_id.value as string) || null,
-          surgery_date: assignmentType === "waiting" ? "" : (e.currentTarget.surgery_date.value as string),
+          patient_name: formData.get("patient_name") as string,
+          protocol_number: formData.get("protocol_number") as string,
+          indication: formData.get("indication") as string,
+          procedure_name: formData.get("procedure_name") as string,
+          responsible_doctor_id: (formData.get("responsible_doctor_id") as string) || null,
+          phone_number_1: formData.get("phone_number_1") as string,
+          phone_number_2: formData.get("phone_number_2") as string,
+          salon_id: assignmentType === "waiting" ? null : (formData.get("salon_id") as string) || null,
+          surgery_date: assignmentType === "waiting" ? "" : (formData.get("surgery_date") as string),
           is_waiting_list: assignmentType === "waiting",
         }
 
@@ -281,13 +256,16 @@ export function SurgeryForm({
           return
         }
 
+        console.log("[v0] Calling updateSurgery with:", updatedData)
         await updateSurgery(surgery.id, updatedData)
+        console.log("[v0] Update successful")
 
         onOpenChange(false)
         window.dispatchEvent(new Event("calendarDataChanged"))
         window.dispatchEvent(new Event("waitingListChanged"))
         alert("Hasta bilgileri güncellendi!")
       } catch (err: any) {
+        console.log("[v0] Update error:", err)
         setError(err.message || "Hasta güncellenirken bir hata oluştu")
       } finally {
         setIsLoading(false)
@@ -295,12 +273,14 @@ export function SurgeryForm({
       return
     }
 
+    console.log("[v0] Creating new surgery")
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
 
     // Handle auto-find
     if (assignmentType === "auto") {
+      console.log("[v0] Auto-find mode")
       const patientData = {
         patient_name: formData.get("patient_name") as string,
         protocol_number: formData.get("protocol_number") as string,
@@ -327,13 +307,16 @@ export function SurgeryForm({
       setPendingPatientData(patientData)
 
       try {
+        console.log("[v0] Finding available dates...")
         const result = await findAvailableDates(patientData.salon_id, patientData.responsible_doctor_id, null)
+        console.log("[v0] Find dates result:", result)
 
         if (result.success && result.slots && result.slots.length > 0) {
           setAvailableSlots(result.slots)
           setAutoFindOpen(true)
           setIsLoading(false)
         } else {
+          console.log("[v0] No slots found, adding to waiting list")
           await createSurgery({
             ...patientData,
             is_waiting_list: true,
@@ -349,6 +332,7 @@ export function SurgeryForm({
           setIsLoading(false)
         }
       } catch (err: any) {
+        console.log("[v0] Auto-find error:", err)
         setError(err.message || "Otomatik yer bulma sırasında bir hata oluştu")
         setIsLoading(false)
       }
@@ -386,7 +370,9 @@ export function SurgeryForm({
         initial_note: formData.get("initial_note") as string,
       }
 
+      console.log("[v0] Creating surgery with data:", surgeryData)
       await createSurgery(surgeryData)
+      console.log("[v0] Surgery created successfully")
 
       onOpenChange(false)
       ;(e.target as HTMLFormElement).reset()
@@ -397,8 +383,10 @@ export function SurgeryForm({
 
       alert(assignmentType === "waiting" ? "Hasta bekleme listesine eklendi!" : "Hasta salona eklendi!")
     } catch (err: any) {
-      setError(err.message || "Ameliyat eklenirken bir hata oluştu")
+      console.log("[v0] Create surgery error:", err)
+      setError(err.message || "Hasta eklenirken bir hata oluştu")
     } finally {
+      console.log("[v0] Setting isLoading to false")
       setIsLoading(false)
     }
   }
@@ -696,7 +684,12 @@ export function SurgeryForm({
                 </div>
               )}
 
-              {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">{error}</div>}
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button

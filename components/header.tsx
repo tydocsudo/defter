@@ -1,4 +1,3 @@
-import { getCurrentUser } from "@/lib/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Settings, Home, BookOpen, Clock, CalendarClock } from "lucide-react"
 import Link from "next/link"
@@ -6,10 +5,13 @@ import Image from "next/image"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { UserProfileMenu } from "@/components/user-profile-menu"
 import { InstallPWAButton } from "@/components/install-pwa-button"
+import type { User } from "@/lib/auth"
 
-export async function Header() {
-  const user = await getCurrentUser()
+interface HeaderProps {
+  user?: User | null
+}
 
+export function Header({ user }: HeaderProps) {
   return (
     <header className="border-b bg-background sticky top-0 z-50 shadow-sm">
       <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
