@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { SurgeryWithDetails, Doctor, Salon, ActivityLog } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -243,7 +243,6 @@ export function FlipbookOperationsList({
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -404,6 +403,15 @@ export function FlipbookOperationsList({
                         </div>
                         <div className="flex items-center gap-2">
                           {surgery.is_approved && <Check className="h-5 w-5 text-green-600" />}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(surgery.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            title="Sil"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm">
@@ -439,10 +447,6 @@ export function FlipbookOperationsList({
                               <DropdownMenuItem onClick={() => handleMoveToWaitingList(surgery.id)}>
                                 <ListX className="h-4 w-4 mr-2" />
                                 Bekleme Listesine Al
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDelete(surgery.id)} className="text-red-600">
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Sil
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

@@ -8,10 +8,11 @@ import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { assignDoctorToDay } from "@/lib/actions/notes"
-import { assignFromWaitingList } from "@/lib/actions/surgeries"
+import { assignFromWaitingList, deleteSurgery } from "@/lib/actions/surgeries"
 import { useState } from "react"
-import { Maximize2 } from "lucide-react"
+import { Maximize2, Trash2 } from "lucide-react"
 import { getDoctorColorById } from "@/components/doctor-filter"
+import { Button } from "@/components/ui/button"
 
 interface MonthlyCalendarProps {
   currentDate: Date
@@ -167,6 +168,20 @@ export function MonthlyCalendar({
     "bg-yellow-100 dark:bg-yellow-700/70 border-yellow-300 dark:border-yellow-500 text-yellow-900 dark:text-yellow-50",
     "bg-indigo-100 dark:bg-indigo-700/70 border-indigo-300 dark:border-indigo-500 text-indigo-900 dark:text-indigo-50",
   ]
+
+  const handleDeleteSurgery = async (surgeryId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm("Bu hastayı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.")) {
+      return
+    }
+
+    try {
+      await deleteSurgery(surgeryId)
+      onDataChange()
+    } catch (error: any) {
+      alert(error.message || "Hasta silinirken bir hata oluştu")
+    }
+  }
 
   return (
     <>
@@ -345,11 +360,22 @@ export function MonthlyCalendar({
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
                       <h4 className="font-bold text-lg text-blue-600 dark:text-blue-400">{surgery.procedure_name}</h4>
-                      {surgery.is_approved && (
-                        <Badge variant="default" className="bg-green-600">
-                          Onaylandı
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {surgery.is_approved && (
+                          <Badge variant="default" className="bg-green-600">
+                            Onaylandı
+                          </Badge>
+                        )}
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={(e) => handleDeleteSurgery(surgery.id, e)}
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                          title="Hastayı Sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

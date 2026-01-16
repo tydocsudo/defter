@@ -34,12 +34,13 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
+  Trash2,
 } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import type { SurgeryWithDetails } from "@/lib/types" // Added SurgeryWithDetails import
 import Link from "next/link"
-import { moveToWaitingList, assignFromWaitingList } from "@/lib/actions/surgeries"
+import { moveToWaitingList, assignFromWaitingList, deleteSurgery } from "@/lib/actions/surgeries" // Added deleteSurgery import
 import { createDayNote, deleteDayNote, createSurgeryNote, deleteSurgeryNote } from "@/lib/actions/notes"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea" // Fixed typo: textareax -> textarea
@@ -117,6 +118,7 @@ export function FlipbookView({
   const cardRef = useRef<HTMLDivElement>(null)
   const hasScrolledToInitialDate = useRef(false)
   const router = useRouter()
+  const [deletingSurgeryId, setDeletingSurgeryId] = useState<string | null>(null) // Added state for delete confirmation
 
   const salons = initialSalons
   const doctors = initialDoctors
@@ -523,6 +525,27 @@ export function FlipbookView({
       }
     } catch (error) {
       console.error("Failed to move surgery to waiting list:", error)
+    }
+  }
+
+  const handleDeleteSurgery = async (surgeryId: string) => {
+    try {
+      await deleteSurgery(surgeryId)
+      setDeletingSurgeryId(null)
+      // Save current view state before reload
+      const safeDate = getSafeCurrentWeekStart()
+      sessionStorage.setItem(
+        "flipbook_scroll_target",
+        JSON.stringify({
+          date: format(safeDate, "yyyy-MM-dd"),
+          salonId: selectedSalonId,
+        }),
+      )
+      window.location.reload()
+    } catch (error) {
+      console.error("Failed to delete surgery:", error)
+      alert("Hasta silinirken bir hata oluştu")
+      setDeletingSurgeryId(null)
     }
   }
 
@@ -985,6 +1008,16 @@ export function FlipbookView({
                                 )}
                               </div>
 
+                              {/* <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 absolute top-2 right-14 text-red-500 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-600 dark:hover:bg-red-900/20"
+                                onClick={() => setDeletingSurgeryId(surgery.id)}
+                                title="Hastayı sil"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button> */}
+
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button
@@ -1025,6 +1058,13 @@ export function FlipbookView({
                                   <DropdownMenuItem onClick={() => handleMoveToWaitingList(surgery.id)}>
                                     <Calendar className="h-3 w-3 mr-2" />
                                     Bekleme Listesine Taşı
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => setDeletingSurgeryId(surgery.id)}
+                                    className="text-red-600 dark:text-red-400"
+                                  >
+                                    <Trash2 className="h-3 w-3 mr-2" />
+                                    Hastayı Sil
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1145,6 +1185,38 @@ export function FlipbookView({
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deletingSurgeryId} onOpenChange={() => setDeletingSurgeryId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hastayı Sil veya Bekleme Listesine Taşı</AlertDialogTitle>
+            <AlertDialogDescription>Bu hastayı ne yapmak istersiniz?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (deletingSurgeryId) {
+                  handleMoveToWaitingList(deletingSurgeryId)
+                  setDeletingSurgeryId(null)
+                }
+              }}
+              className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/20"
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              Bekleme Listesine Taşı
+            </Button>
+            <AlertDialogAction
+              onClick={() => deletingSurgeryId && handleDeleteSurgery(deletingSurgeryId)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Kalıcı Olarak Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteNoteId} onOpenChange={(open) => !open && setDeleteNoteId(null)}>
         <AlertDialogContent className="dark:bg-slate-800 dark:text-slate-100">
