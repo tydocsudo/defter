@@ -223,12 +223,18 @@ export function SurgeryForm({
         return
       }
 
-      // Check doctor assignment mismatch
+      // Check doctor assignment mismatch with timeout
       if (doctorId && salonId && selectedDate) {
         try {
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 3000) // 3 second timeout
+
           const response = await fetch(
             `/api/doctor-assigned-dates?doctorId=${doctorId}&salonId=${salonId}&checkDate=${selectedDate}`,
+            { signal: controller.signal },
           )
+
+          clearTimeout(timeoutId)
 
           if (response.ok) {
             const data = await response.json()
@@ -245,7 +251,8 @@ export function SurgeryForm({
             }
           }
         } catch (err) {
-          // Continue without check if API fails
+          // Continue without check if API fails or times out
+          console.log("Doctor assignment check skipped due to timeout or error")
         }
       }
     }

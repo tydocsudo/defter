@@ -62,16 +62,12 @@ export async function createSurgery(formData: {
     is_approved: false,
   }
 
-  console.log("[v0] Creating surgery in Supabase:", surgeryData)
-
   const { data: newSurgery, error } = await supabase.from("surgeries").insert(surgeryData).select().single()
 
   if (error) {
-    console.error("[v0] Error creating surgery:", error)
     throw new Error(error.message)
   }
 
-  // Add initial note if provided
   if (formData.initial_note && newSurgery) {
     await supabase.from("surgery_notes").insert({
       surgery_id: newSurgery.id,
@@ -79,8 +75,6 @@ export async function createSurgery(formData: {
       created_by: user.id,
     })
   }
-
-  console.log("[v0] Surgery created successfully:", newSurgery)
 
   await logActivity("Hasta Eklendi", {
     surgery_id: newSurgery.id,
@@ -118,8 +112,6 @@ export async function updateSurgery(
 
   const { data: oldData } = await supabase.from("surgeries").select("*").eq("id", surgeryId).single()
 
-  console.log("[v0] Updating surgery in Supabase:", { surgeryId, formData })
-
   const { data, error } = await supabase
     .from("surgeries")
     .update({
@@ -131,11 +123,8 @@ export async function updateSurgery(
     .single()
 
   if (error) {
-    console.error("[v0] Error updating surgery:", error)
     throw new Error(error.message)
   }
-
-  console.log("[v0] Surgery updated successfully:", data)
 
   if (!skipLogging) {
     const detailedChanges: any = {}
@@ -387,7 +376,6 @@ export async function bulkMoveToWaitingListByMonth(year: number, month: number) 
 
   const supabase = createAdminClient()
 
-  // Get all surgeries in the specified month
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`
   const endDate = `${year}-${String(month).padStart(2, "0")}-31`
 
@@ -411,7 +399,6 @@ export async function bulkMoveToWaitingListByMonth(year: number, month: number) 
 
   console.log("[v0] Found", surgeries.length, "surgeries to move")
 
-  // Move all surgeries to waiting list
   const { error: updateError } = await supabase
     .from("surgeries")
     .update({
@@ -430,7 +417,6 @@ export async function bulkMoveToWaitingListByMonth(year: number, month: number) 
     throw new Error(updateError.message)
   }
 
-  // Log activity for bulk operation
   await logActivity("Toplu Bekleme Listesine Alındı", {
     year,
     month,
@@ -606,7 +592,6 @@ export async function restoreFromBackup(
           if (recordWithoutId.created_by && idMapping.profiles[recordWithoutId.created_by]) {
             recordWithoutId.created_by = idMapping.profiles[recordWithoutId.created_by]
           } else {
-            // Default to current user if no mapping found
             recordWithoutId.created_by = user.id
           }
           if (recordWithoutId.approved_by && idMapping.profiles[recordWithoutId.approved_by]) {
@@ -630,7 +615,6 @@ export async function restoreFromBackup(
         }
 
         if (existingRecord) {
-          // Update existing record
           const { error } = await supabase.from(table).update(recordWithoutId).eq("id", existingRecord.id)
           if (error) {
             results[table].errors++
@@ -682,7 +666,6 @@ export async function bulkReassignPatientsByDate(
 
   console.log("[v0] Bulk reassigning patients for date:", { surgeryDate, currentSalonId, updates })
 
-  // Get all surgeries for the specified date and salon
   const { data: surgeries, error: fetchError } = await supabase
     .from("surgeries")
     .select("id, patient_name, salon_id, responsible_doctor_id")
@@ -701,7 +684,6 @@ export async function bulkReassignPatientsByDate(
 
   console.log("[v0] Found", surgeries.length, "surgeries to reassign")
 
-  // Prepare update data
   const updateData: any = {
     updated_at: new Date().toISOString(),
   }
@@ -714,7 +696,6 @@ export async function bulkReassignPatientsByDate(
     updateData.responsible_doctor_id = updates.newDoctorId
   }
 
-  // Update all surgeries
   const { error: updateError } = await supabase
     .from("surgeries")
     .update(updateData)
@@ -728,7 +709,6 @@ export async function bulkReassignPatientsByDate(
     throw new Error(updateError.message)
   }
 
-  // Log activity
   await logActivity("Toplu Hasta Yeniden Atandı", {
     surgery_date: surgeryDate,
     current_salon_id: currentSalonId,
