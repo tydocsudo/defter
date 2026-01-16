@@ -3,7 +3,7 @@
 import type React from "react"
 import type { Doctor, Salon, Surgery } from "@/lib/types"
 import { createSurgery, updateSurgery } from "@/lib/actions/surgeries"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Wand2, AlertCircle } from "lucide-react"
+import { Wand2, AlertCircle, Loader2 } from "lucide-react"
 import { findAvailableDates } from "@/lib/actions/auto-scheduler"
 import { AvailableSlotsDialog } from "@/components/waiting-list/available-slots-dialog"
 import { useRouter } from "next/navigation"
@@ -32,17 +32,15 @@ interface SurgeryFormProps {
   defaultDate?: string
   defaultSalonId?: string
   isWaitingList?: boolean
-  surgery?: Surgery | null // Added surgery prop for edit mode
+  surgery?: Surgery | null
 }
 
 const getMinDate = () => {
   const today = new Date()
   const day = today.getDay()
-  // If today is Saturday (6), start from Monday
   if (day === 6) {
     today.setDate(today.getDate() + 2)
   }
-  // If today is Sunday (0), start from Monday
   if (day === 0) {
     today.setDate(today.getDate() + 1)
   }
@@ -58,12 +56,12 @@ const isWeekend = (dateString: string) => {
 export function SurgeryForm({
   open,
   onOpenChange,
-  doctors,
-  salons,
+  doctors: propDoctors,
+  salons: propSalons,
   defaultDate,
   defaultSalonId,
   isWaitingList = false,
-  surgery, // Added surgery parameter
+  surgery,
 }: SurgeryFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -71,16 +69,15 @@ export function SurgeryForm({
     isWaitingList ? "waiting" : surgery ? (surgery.salon_id ? "salon" : "waiting") : "salon",
   )
 
+  const [salons, setSalons] = useState<Salon[]>(propSalons || [])
+  const [doctors, setDoctors] = useState<Doctor[]>(propDoctors || [])
+  const [isLoadingData, setIsLoadingData] = useState(false)
+
   const [autoFindOpen, setAutoFindOpen] = useState(false)
   const [availableSlots, setAvailableSlots] = useState<any[]>([])
   const [isSearchingSlots, setIsSearchingSlots] = useState(false)
   const [pendingPatientData, setPendingPatientData] = useState<any>(null)
   const [surgeryDateError, setSurgeryDateError] = useState<string | null>(null)
-  const [doctorMismatchWarning, setDoctorMismatchWarning] = useState<{
-    show: boolean
-    assignedDoctorName: string
-    assignedDoctorId: string
-  } | null>(null)
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(
     surgery?.responsible_doctor_id || pendingPatientData?.responsible_doctor_id || null,
@@ -94,37 +91,130 @@ export function SurgeryForm({
   const router = useRouter()
 
   useEffect(() => {
-    if (selectedDoctorId && selectedSalonId && (assignmentType === "salon" || surgery)) {
-      setIsLoadingDates(true)
+    const fetchData = async () => {
+      if (!open) return
 
-      fetch(`/api/doctor-assigned-dates?doctorId=${selectedDoctorId}&salonId=${selectedSalonId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.dates) {
-            setAssignedDates(new Set(data.dates))
-          }
-        })
-        .catch((err) => {
-          console.error("Error fetching assigned dates:", err)
-        })
-        .finally(() => {
-          setIsLoadingDates(false)
-        })
-    } else {
+      const needsSalons = !propSalons || propSalons.length === 0
+      const needsDoctors = !propDoctors || propDoctors.length === 0
+
+      if (!needsSalons && !needsDoctors) {
+        setSalons(propSalons)
+        setDoctors(propDoctors)
+        return
+      }
+
+      setIsLoadingData(true)
+      try {
+        const promises: Promise<any>[] = []
+
+        if (needsSalons) {
+          promises.push(
+            fetch("/api/salons")
+              .then((res) => (res.ok ? res.json() : []))
+              .catch(() => []),
+          )
+        } else {
+          promises.push(Promise.resolve(propSalons))
+        }
+
+        if (needsDoctors) {
+          promises.push(
+            fetch("/api/doctors")
+              .then((res) => (res.ok ? res.json() : []))
+              .catch(() => []),
+          )
+        } else {
+          promises.push(Promise.resolve(propDoctors))
+        }
+
+        const [salonsData, doctorsData] = await Promise.all(promises)
+        setSalons(salonsData || [])
+        setDoctors(doctorsData || [])
+      } catch (err) {
+        console.error("Error fetching form data:", err)
+      } finally {
+        setIsLoadingData(false)
+      }
+    }
+
+    fetchData()
+  }, [open, propSalons, propDoctors])
+
+  // Update local state when props change
+  useEffect(() => {
+    if (propSalons && propSalons.length > 0) {
+      setSalons(propSalons)
+    }
+    if (propDoctors && propDoctors.length > 0) {
+      setDoctors(propDoctors)
+    }
+  }, [propSalons, propDoctors])
+
+  const fetchAssignedDates = useCallback(async () => {
+    if (!selectedDoctorId || !selectedSalonId || (assignmentType !== "salon" && !surgery)) {
       setAssignedDates(new Set())
+      return
+    }
+
+    setIsLoadingDates(true)
+    try {
+      const response = await fetch(`/api/doctor-assigned-dates?doctorId=${selectedDoctorId}&salonId=${selectedSalonId}`)
+
+      if (!response.ok) {
+        setAssignedDates(new Set())
+        return
+      }
+
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        setAssignedDates(new Set())
+        return
+      }
+
+      const data = await response.json()
+      if (data.success && data.dates) {
+        setAssignedDates(new Set(data.dates))
+      } else {
+        setAssignedDates(new Set())
+      }
+    } catch (err) {
+      setAssignedDates(new Set())
+    } finally {
+      setIsLoadingDates(false)
     }
   }, [selectedDoctorId, selectedSalonId, assignmentType, surgery])
 
+  useEffect(() => {
+    fetchAssignedDates()
+  }, [fetchAssignedDates])
+
+  useEffect(() => {
+    if (open) {
+      setError(null)
+      setSurgeryDateError(null)
+      if (!surgery) {
+        setAssignmentType(isWaitingList ? "waiting" : "salon")
+      }
+    }
+  }, [open, surgery, isWaitingList])
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    setError(null)
 
     if (assignmentType === "salon") {
       const formData = new FormData(e.currentTarget)
       const selectedDate = formData.get("surgery_date") as string
-      const selectedDoctorId = formData.get("responsible_doctor_id") as string
+      const doctorId = formData.get("responsible_doctor_id") as string
+      const salonId = formData.get("salon_id") as string
 
       if (!selectedDate || selectedDate.trim() === "") {
         setError("Salona atarken ameliyat tarihi zorunludur")
+        return
+      }
+
+      if (!salonId) {
+        setError("Lütfen bir salon seçin")
         return
       }
 
@@ -133,34 +223,36 @@ export function SurgeryForm({
         return
       }
 
-      // Check if there's a doctor assignment mismatch
-      if (selectedDoctorId && selectedSalonId && selectedDate) {
+      // Check doctor assignment mismatch
+      if (doctorId && salonId && selectedDate) {
         try {
           const response = await fetch(
-            `/api/doctor-assigned-dates?doctorId=${selectedDoctorId}&salonId=${selectedSalonId}&checkDate=${selectedDate}`,
+            `/api/doctor-assigned-dates?doctorId=${doctorId}&salonId=${salonId}&checkDate=${selectedDate}`,
           )
-          const data = await response.json()
 
-          if (data.success && data.assignedDoctor && data.assignedDoctor.id !== selectedDoctorId) {
-            const assignedDoctor = doctors.find((d) => d.id === data.assignedDoctor.id)
-            if (assignedDoctor) {
-              const confirmed = window.confirm(
-                `Bu tarihe başka bir hoca atanmış: ${assignedDoctor.name}\n\nSeçtiğiniz hoca: ${doctors.find((d) => d.id === selectedDoctorId)?.name}\n\nYine de devam etmek istiyor musunuz?`,
-              )
-              if (!confirmed) {
-                return
+          if (response.ok) {
+            const data = await response.json()
+            if (data.success && data.assignedDoctor && data.assignedDoctor.id !== doctorId) {
+              const assignedDoctor = doctors.find((d) => d.id === data.assignedDoctor.id)
+              if (assignedDoctor) {
+                const confirmed = window.confirm(
+                  `Bu tarihe başka bir hoca atanmış: ${assignedDoctor.name}\n\nSeçtiğiniz hoca: ${doctors.find((d) => d.id === doctorId)?.name}\n\nYine de devam etmek istiyor musunuz?`,
+                )
+                if (!confirmed) {
+                  return
+                }
               }
             }
           }
         } catch (err) {
-          console.error("Error checking doctor assignment:", err)
+          // Continue without check if API fails
         }
       }
     }
 
+    // Handle surgery update
     if (surgery) {
       setIsLoading(true)
-      setError(null)
 
       try {
         const updatedData = {
@@ -176,14 +268,12 @@ export function SurgeryForm({
           is_waiting_list: assignmentType === "waiting",
         }
 
-        // Validate weekend
         if (assignmentType === "salon" && updatedData.surgery_date && isWeekend(updatedData.surgery_date)) {
           setError("Cumartesi ve Pazar günleri ameliyat yapılamaz")
           setIsLoading(false)
           return
         }
 
-        console.log("[v0] Updating surgery:", surgery.id, updatedData)
         await updateSurgery(surgery.id, updatedData)
 
         onOpenChange(false)
@@ -191,7 +281,6 @@ export function SurgeryForm({
         window.dispatchEvent(new Event("waitingListChanged"))
         alert("Hasta bilgileri güncellendi!")
       } catch (err: any) {
-        console.error("[v0] Error updating surgery:", err)
         setError(err.message || "Hasta güncellenirken bir hata oluştu")
       } finally {
         setIsLoading(false)
@@ -200,10 +289,10 @@ export function SurgeryForm({
     }
 
     setIsLoading(true)
-    setError(null)
 
     const formData = new FormData(e.currentTarget)
 
+    // Handle auto-find
     if (assignmentType === "auto") {
       const patientData = {
         patient_name: formData.get("patient_name") as string,
@@ -231,19 +320,13 @@ export function SurgeryForm({
       setPendingPatientData(patientData)
 
       try {
-        console.log("[v0] Searching for available slots with data:", patientData)
-
         const result = await findAvailableDates(patientData.salon_id, patientData.responsible_doctor_id, null)
-
-        console.log("[v0] Auto-find result:", result)
 
         if (result.success && result.slots && result.slots.length > 0) {
           setAvailableSlots(result.slots)
           setAutoFindOpen(true)
           setIsLoading(false)
         } else {
-          console.log("[v0] No slots found, adding to waiting list")
-
           await createSurgery({
             ...patientData,
             is_waiting_list: true,
@@ -251,9 +334,7 @@ export function SurgeryForm({
             surgery_date: "",
           })
 
-          alert(
-            "Uygun tarih bulunamadı. Hasta bekleme listesine eklendi. İlerleyen tarihlerde uygun yer açıldığında hasta atanabilir.",
-          )
+          alert("Uygun tarih bulunamadı. Hasta bekleme listesine eklendi.")
           onOpenChange(false)
           ;(e.target as HTMLFormElement).reset()
           setPendingPatientData(null)
@@ -261,13 +342,13 @@ export function SurgeryForm({
           setIsLoading(false)
         }
       } catch (err: any) {
-        console.error("[v0] Error in auto-find:", err)
         setError(err.message || "Otomatik yer bulma sırasında bir hata oluştu")
         setIsLoading(false)
       }
       return
     }
 
+    // Validate salon selection
     if (assignmentType === "salon" && !formData.get("salon_id")) {
       setError("Lütfen bir salon seçin veya bekleme listesine ekleyin")
       setIsLoading(false)
@@ -298,20 +379,17 @@ export function SurgeryForm({
         initial_note: formData.get("initial_note") as string,
       }
 
-      console.log("[v0] Creating surgery with data:", surgeryData)
-      const result = await createSurgery(surgeryData)
-      console.log("[v0] Surgery created successfully:", result)
+      await createSurgery(surgeryData)
 
       onOpenChange(false)
       ;(e.target as HTMLFormElement).reset()
-      setAssignmentType(isWaitingList ? "waiting" : surgery ? (surgery.salon_id ? "salon" : "waiting") : "salon")
+      setAssignmentType(isWaitingList ? "waiting" : "salon")
 
       window.dispatchEvent(new Event("calendarDataChanged"))
       window.dispatchEvent(new Event("waitingListChanged"))
 
       alert(assignmentType === "waiting" ? "Hasta bekleme listesine eklendi!" : "Hasta salona eklendi!")
     } catch (err: any) {
-      console.error("[v0] Error creating surgery:", err)
       setError(err.message || "Ameliyat eklenirken bir hata oluştu")
     } finally {
       setIsLoading(false)
@@ -323,16 +401,12 @@ export function SurgeryForm({
 
     setIsSearchingSlots(true)
     try {
-      console.log("[v0] Creating and assigning patient to date:", date)
-
-      const result = await createSurgery({
+      await createSurgery({
         ...pendingPatientData,
         salon_id: pendingPatientData.salon_id,
         surgery_date: date,
         is_waiting_list: false,
       })
-
-      console.log("[v0] Patient created and assigned successfully")
 
       setAutoFindOpen(false)
       onOpenChange(false)
@@ -351,11 +425,9 @@ export function SurgeryForm({
       )
 
       setTimeout(() => {
-        console.log("[v0] Redirecting to fliphtml with scroll target:", date)
         window.location.href = "/fliphtml"
       }, 100)
     } catch (error: any) {
-      console.error("[v0] Error assigning slot:", error)
       alert(error.message || "Atama yapılırken bir hata oluştu")
     } finally {
       setIsSearchingSlots(false)
@@ -363,12 +435,10 @@ export function SurgeryForm({
   }
 
   const handleBackFromSlots = () => {
-    console.log("[v0] Back button clicked - returning to form without saving")
     setAutoFindOpen(false)
     setAvailableSlots([])
     setIsLoading(false)
     setIsSearchingSlots(false)
-    // Keep pendingPatientData so user can see their form data
   }
 
   const handleMainDialogClose = (open: boolean) => {
@@ -377,10 +447,13 @@ export function SurgeryForm({
       setAvailableSlots([])
       setAutoFindOpen(false)
       setError(null)
+      setSurgeryDateError(null)
       setAssignmentType(isWaitingList ? "waiting" : surgery ? (surgery.salon_id ? "salon" : "waiting") : "salon")
     }
     onOpenChange(open)
   }
+
+  const isFormLoading = isLoading || isLoadingData
 
   return (
     <>
@@ -395,19 +468,27 @@ export function SurgeryForm({
                   : "Hastayı salona atayın, otomatik yer bulun veya bekleme listesine ekleyin"}
               </DialogDescription>
             </DialogHeader>
+
+            {isLoadingData && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                <span className="text-sm text-muted-foreground">Veriler yükleniyor...</span>
+              </div>
+            )}
+
             <div className="space-y-4 py-4">
               {!surgery && (
                 <div className="space-y-3">
                   <Label>Hasta Durumu</Label>
                   <RadioGroup value={assignmentType} onValueChange={(value: any) => setAssignmentType(value)}>
                     <div className="flex items-center space-x-2 py-1">
-                      <RadioGroupItem value="salon" id="salon" />
+                      <RadioGroupItem value="salon" id="salon" disabled={isFormLoading} />
                       <Label htmlFor="salon" className="font-normal cursor-pointer">
                         Salona Ata
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2 py-1">
-                      <RadioGroupItem value="auto" id="auto" />
+                      <RadioGroupItem value="auto" id="auto" disabled={isFormLoading} />
                       <Label htmlFor="auto" className="font-normal cursor-pointer flex items-center gap-2">
                         <Wand2 className="h-4 w-4" />
                         Otomatik Yer Bul
@@ -418,7 +499,7 @@ export function SurgeryForm({
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2 py-1">
-                      <RadioGroupItem value="waiting" id="waiting" />
+                      <RadioGroupItem value="waiting" id="waiting" disabled={isFormLoading} />
                       <Label htmlFor="waiting" className="font-normal cursor-pointer">
                         Bekleme Listesine Ekle
                       </Label>
@@ -434,7 +515,7 @@ export function SurgeryForm({
                     id="patient_name"
                     name="patient_name"
                     required
-                    disabled={isLoading}
+                    disabled={isFormLoading}
                     defaultValue={surgery?.patient_name || pendingPatientData?.patient_name || ""}
                   />
                 </div>
@@ -444,7 +525,7 @@ export function SurgeryForm({
                     id="protocol_number"
                     name="protocol_number"
                     required
-                    disabled={isLoading}
+                    disabled={isFormLoading}
                     defaultValue={surgery?.protocol_number || pendingPatientData?.protocol_number || ""}
                   />
                 </div>
@@ -454,7 +535,7 @@ export function SurgeryForm({
                     id="indication"
                     name="indication"
                     required
-                    disabled={isLoading}
+                    disabled={isFormLoading}
                     defaultValue={surgery?.indication || pendingPatientData?.indication || ""}
                   />
                 </div>
@@ -466,7 +547,7 @@ export function SurgeryForm({
                   id="procedure_name"
                   name="procedure_name"
                   required
-                  disabled={isLoading}
+                  disabled={isFormLoading}
                   rows={3}
                   defaultValue={surgery?.procedure_name || pendingPatientData?.procedure_name || ""}
                 />
@@ -478,7 +559,7 @@ export function SurgeryForm({
                 </Label>
                 <Select
                   name="responsible_doctor_id"
-                  disabled={isLoading}
+                  disabled={isFormLoading}
                   required={assignmentType === "auto"}
                   defaultValue={
                     surgery?.responsible_doctor_id || pendingPatientData?.responsible_doctor_id || undefined
@@ -486,7 +567,7 @@ export function SurgeryForm({
                   onValueChange={(value) => setSelectedDoctorId(value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seçiniz" />
+                    <SelectValue placeholder={doctors.length === 0 ? "Yükleniyor..." : "Seçiniz"} />
                   </SelectTrigger>
                   <SelectContent>
                     {doctors.map((doctor) => (
@@ -506,7 +587,7 @@ export function SurgeryForm({
                     name="phone_number_1"
                     type="tel"
                     required
-                    disabled={isLoading}
+                    disabled={isFormLoading}
                     defaultValue={surgery?.phone_number_1 || pendingPatientData?.phone_number_1 || ""}
                   />
                 </div>
@@ -517,7 +598,7 @@ export function SurgeryForm({
                     name="phone_number_2"
                     type="tel"
                     required
-                    disabled={isLoading}
+                    disabled={isFormLoading}
                     defaultValue={surgery?.phone_number_2 || pendingPatientData?.phone_number_2 || ""}
                   />
                 </div>
@@ -532,12 +613,12 @@ export function SurgeryForm({
                     <Select
                       name="salon_id"
                       defaultValue={surgery?.salon_id || pendingPatientData?.salon_id || defaultSalonId}
-                      disabled={isLoading}
-                      required={assignmentType === "auto"}
+                      disabled={isFormLoading}
+                      required={assignmentType === "auto" || assignmentType === "salon"}
                       onValueChange={(value) => setSelectedSalonId(value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Seçiniz" />
+                        <SelectValue placeholder={salons.length === 0 ? "Yükleniyor..." : "Seçiniz"} />
                       </SelectTrigger>
                       <SelectContent>
                         {salons.map((salon) => (
@@ -552,18 +633,22 @@ export function SurgeryForm({
                     <div className="space-y-2">
                       <Label htmlFor="surgery_date">
                         Ameliyat Tarihi *
-                        {isLoadingDates && <span className="text-xs text-muted-foreground ml-2">Yükleniyor...</span>}
+                        {isLoadingDates && (
+                          <span className="text-xs text-muted-foreground ml-2 inline-flex items-center">
+                            <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            Yükleniyor...
+                          </span>
+                        )}
                         {!isLoadingDates && selectedDoctorId && assignedDates.size > 0 && (
                           <span className="text-xs text-blue-600 ml-2">(Sadece hoca atanmış günler seçilebilir)</span>
                         )}
-                        {/* */}
                       </Label>
                       <Input
                         id="surgery_date"
                         name="surgery_date"
                         type="date"
                         defaultValue={surgery?.surgery_date || defaultDate}
-                        disabled={isLoading}
+                        disabled={isFormLoading}
                         required={assignmentType === "salon"}
                         min={getMinDate()}
                         onChange={(e) => {
@@ -580,22 +665,27 @@ export function SurgeryForm({
                               return
                             }
                           }
-                          //
 
                           setSurgeryDateError(null)
                           e.target.setCustomValidity("")
                         }}
-                        className={assignedDates.size > 0 ? "date-picker-with-highlights" : ""}
-                        style={
-                          {
-                            // Inline style to highlight assigned dates - will be enhanced with CSS
-                          }
-                        }
-                        //
                       />
                       {surgeryDateError && <p className="text-xs text-red-600">{surgeryDateError}</p>}
                     </div>
                   )}
+                </div>
+              )}
+
+              {!surgery && assignmentType !== "auto" && (
+                <div className="space-y-2">
+                  <Label htmlFor="initial_note">Not (Opsiyonel)</Label>
+                  <Textarea
+                    id="initial_note"
+                    name="initial_note"
+                    disabled={isFormLoading}
+                    rows={2}
+                    placeholder="Hasta hakkında eklemek istediğiniz not..."
+                  />
                 </div>
               )}
 
@@ -606,21 +696,30 @@ export function SurgeryForm({
                 type="button"
                 variant="outline"
                 onClick={() => handleMainDialogClose(false)}
-                disabled={isLoading}
+                disabled={isFormLoading}
                 className="w-full sm:w-auto"
               >
                 İptal
               </Button>
-              <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-                {isLoading
-                  ? "İşleniyor..."
-                  : surgery
-                    ? "Güncelle"
-                    : assignmentType === "waiting"
-                      ? "Bekleme Listesine Ekle"
-                      : assignmentType === "auto"
-                        ? "Otomatik Yer Bul"
-                        : "Salona Ekle"}
+              <Button
+                type="submit"
+                disabled={isFormLoading || (salons.length === 0 && assignmentType !== "waiting")}
+                className="w-full sm:w-auto"
+              >
+                {isFormLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    İşleniyor...
+                  </>
+                ) : surgery ? (
+                  "Güncelle"
+                ) : assignmentType === "waiting" ? (
+                  "Bekleme Listesine Ekle"
+                ) : assignmentType === "auto" ? (
+                  "Otomatik Yer Bul"
+                ) : (
+                  "Salona Ekle"
+                )}
               </Button>
             </DialogFooter>
           </form>
