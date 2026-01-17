@@ -9,6 +9,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react"
 import { MonthlyCalendar } from "./monthly-calendar"
 import { FlipbookOperationsList } from "@/components/flipbook/flipbook-operations-list"
 import { DoctorFilter } from "@/components/doctor-filter"
+import { PatientSearch } from "@/components/patient-search"
 import { format } from "date-fns"
 import { tr } from "date-fns/locale"
 
@@ -37,6 +38,7 @@ export function MonthlyView({
   const [showOperationsList, setShowOperationsList] = useState(false)
   const [hasUsedInitialData, setHasUsedInitialData] = useState(false)
   const [filteredDoctors, setFilteredDoctors] = useState<string[]>([])
+  const [highlightedDate, setHighlightedDate] = useState<string | null>(null)
 
   const currentYear = currentDate.getFullYear()
   const currentMonth = currentDate.getMonth()
@@ -130,6 +132,27 @@ export function MonthlyView({
     setShowOperationsList(true)
   }
 
+  const handlePatientSelect = useCallback(
+    (date: string, salonId: string | null) => {
+      const targetDate = new Date(date)
+      setCurrentDate(targetDate)
+
+      if (salonId && salonId !== selectedSalon) {
+        setSelectedSalon(salonId)
+      }
+
+      setSelectedDate(date)
+      setShowOperationsList(true)
+
+      setHighlightedDate(date)
+
+      setTimeout(() => {
+        setHighlightedDate(null)
+      }, 3000)
+    },
+    [selectedSalon],
+  )
+
   const monthNames = [
     "Ocak",
     "Şubat",
@@ -153,7 +176,8 @@ export function MonthlyView({
             <div className="flex flex-col space-y-3 sm:space-y-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
                 <CardTitle className="text-sm sm:text-base md:text-lg flex-shrink-0">Aylık Takvim</CardTitle>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                  <PatientSearch onSelectPatient={handlePatientSelect} />
                   <DoctorFilter
                     doctors={doctors}
                     selectedDoctors={filteredDoctors}
@@ -211,6 +235,7 @@ export function MonthlyView({
                 salonId={selectedSalon}
                 onDataChange={fetchData}
                 filteredDoctors={filteredDoctors}
+                highlightedDate={highlightedDate}
               />
             )}
           </CardContent>

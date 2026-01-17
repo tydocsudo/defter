@@ -20,11 +20,12 @@ interface Surgery {
 }
 
 interface PatientSearchProps {
-  onSelectPatient: (date: string, salonId: string | null) => void
+  onSelectPatient: (dateOrId: string, salonId?: string | null) => void
   doctorId?: string | null
+  isWaitingListOnly?: boolean
 }
 
-export function PatientSearch({ onSelectPatient, doctorId }: PatientSearchProps) {
+export function PatientSearch({ onSelectPatient, doctorId, isWaitingListOnly = false }: PatientSearchProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<Surgery[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -53,9 +54,9 @@ export function PatientSearch({ onSelectPatient, doctorId }: PatientSearchProps)
       setIsSearching(true)
       setIsOpen(true)
       try {
-        const url = doctorId
-          ? `/api/patients/search?q=${encodeURIComponent(searchQuery)}&doctorId=${doctorId}`
-          : `/api/patients/search?q=${encodeURIComponent(searchQuery)}`
+        let url = `/api/patients/search?q=${encodeURIComponent(searchQuery)}`
+        if (doctorId) url += `&doctorId=${doctorId}`
+        if (isWaitingListOnly) url += `&waitingListOnly=true`
 
         const response = await fetch(url)
         if (response.ok) {
@@ -74,40 +75,42 @@ export function PatientSearch({ onSelectPatient, doctorId }: PatientSearchProps)
 
     const debounceTimer = setTimeout(searchPatients, 300)
     return () => clearTimeout(debounceTimer)
-  }, [searchQuery, doctorId])
+  }, [searchQuery, doctorId, isWaitingListOnly])
 
   const handleSelectPatient = (surgery: Surgery) => {
-    if (surgery.surgery_date) {
+    if (isWaitingListOnly) {
+      onSelectPatient(surgery.id)
+    } else if (surgery.surgery_date) {
       onSelectPatient(surgery.surgery_date, surgery.salon_id)
-      setSearchQuery("")
-      setSearchResults([])
-      setIsOpen(false)
     }
+    setSearchQuery("")
+    setSearchResults([])
+    setIsOpen(false)
   }
 
   return (
     <div ref={containerRef} className="relative">
       <div className="flex items-center gap-2">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 dark:text-white/60" />
           <Input
             placeholder="Hasta Bul..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-[140px] sm:w-[180px] pl-8 h-9 bg-white/10 border-white/20 text-white placeholder:text-white/60 text-sm"
+            className="w-[140px] sm:w-[180px] pl-8 h-9 bg-gray-200 dark:bg-white/10 border-gray-300 dark:border-white/20 text-gray-900 dark:text-white placeholder:text-gray-600 dark:placeholder:text-white/60 text-sm"
           />
           {searchQuery && (
             <Button
               variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-white/60 hover:text-white hover:bg-white/10"
+              size="sm"
               onClick={() => {
                 setSearchQuery("")
                 setSearchResults([])
                 setIsOpen(false)
               }}
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 hover:bg-white/20 dark:hover:bg-white/20"
             >
-              <X className="h-3 w-3" />
+              <X className="h-3 w-3 text-gray-600 dark:text-white/60" />
             </Button>
           )}
         </div>

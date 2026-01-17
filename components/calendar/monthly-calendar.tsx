@@ -26,6 +26,7 @@ interface MonthlyCalendarProps {
   salonId: string
   onDataChange: () => void
   filteredDoctors?: string[]
+  highlightedDate?: string | null // Added highlightedDate prop for patient search navigation
 }
 
 export function MonthlyCalendar({
@@ -40,6 +41,7 @@ export function MonthlyCalendar({
   salonId,
   onDataChange,
   filteredDoctors = [],
+  highlightedDate = null, // Accept highlightedDate prop
 }: MonthlyCalendarProps) {
   const [isAssigning, setIsAssigning] = useState(false)
   const [expandedDate, setExpandedDate] = useState<string | null>(null)
@@ -200,6 +202,7 @@ export function MonthlyCalendar({
             const isToday = new Date().toISOString().split("T")[0] === dateStr
             const isDraggedOver = dragOver === dateStr
             const doctorHighlight = getFilteredDoctorHighlight(day)
+            const isHighlighted = highlightedDate === dateStr // Check if this date is highlighted from patient search
 
             const date = new Date(year, month, day)
             const dayOfWeek = date.getDay()
@@ -217,6 +220,7 @@ export function MonthlyCalendar({
                   !isSelected && !isToday && !doctorHighlight && "bg-card hover:bg-muted",
                   isDraggedOver && "ring-2 ring-green-500 bg-green-50 dark:bg-green-950",
                   doctorHighlight && !isSelected && `${doctorHighlight.bg} ${doctorHighlight.border} border-2`,
+                  isHighlighted && "ring-4 ring-purple-500 animate-pulse",
                 )}
                 onClick={() => onDateSelect(dateStr)}
                 onDragOver={(e) => handleDragOver(e, day)}

@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { assignFromWaitingList, deleteSurgery } from "@/lib/actions/surgeries"
-import { Calendar, MoreHorizontal, Trash2, MessageSquare, Wand2, AlertCircle, ArrowUpDown } from "lucide-react"
+import { Calendar, MoreHorizontal, Trash2, MessageSquare, ArrowUpDown } from "lucide-react"
 import { SurgeryForm } from "@/components/surgery-form"
 import { Textarea } from "@/components/ui/textarea"
 import { createSurgeryNote } from "@/lib/actions/notes"
@@ -27,6 +27,7 @@ import { AvailableSlotsDialog } from "@/components/waiting-list/available-slots-
 import { Badge } from "@/components/ui/badge"
 import { DoctorFilter } from "@/components/doctor-filter"
 import { Search, X, User } from "lucide-react"
+import { PatientSearch } from "@/components/patient-search"
 
 interface WaitingListTableProps {
   surgeries: SurgeryWithDetails[]
@@ -200,6 +201,17 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
     }
   }
 
+  const handlePatientSelect = (surgeryId: string) => {
+    const element = document.getElementById(`surgery-${surgeryId}`)
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" })
+      element.classList.add("bg-yellow-100", "dark:bg-yellow-900/20")
+      setTimeout(() => {
+        element.classList.remove("bg-yellow-100", "dark:bg-yellow-900/20")
+      }, 2000)
+    }
+  }
+
   const filteredSurgeries =
     selectedDoctors.length > 0
       ? surgeries.filter((s) => s.responsible_doctor_id && selectedDoctors.includes(s.responsible_doctor_id))
@@ -233,6 +245,8 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
     return sortDirection === "asc" ? compareResult : -compareResult
   })
 
+  const filteredAndSortedSurgeries = sortedSurgeries
+
   useEffect(() => {
     const fetchSalons = async () => {
       if (selectedSurgery && !isFetchingSalons) {
@@ -255,39 +269,25 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
   }, [selectedSurgery])
 
   return (
-    <>
-      <div className="mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
-        <Button onClick={() => setIsAddFormOpen(true)} className="w-full sm:w-auto">
-          Bekleme Listesine Hasta Ekle
-        </Button>
-
-        <Button
-          variant="destructive"
-          onClick={() => {
-            setAutoFindDialogOpen(true)
-            setAutoFindStep("patient")
-          }}
-          disabled={surgeries.length === 0}
-          className="gap-2 w-full sm:w-auto flex-wrap justify-center"
-        >
-          <Wand2 className="h-4 w-4" />
-          Otomatik Bul
-          <Badge
-            variant="secondary"
-            className="ml-1 bg-white text-red-600 hover:bg-white py-0 px-2 text-[10px] sm:text-xs"
-          >
-            <AlertCircle className="h-3 w-3 mr-1" />
-            DENEYSEL
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold">Bekleme Listesi</h2>
+          <Badge variant="secondary" className="text-sm">
+            {filteredAndSortedSurgeries.length} Hasta
           </Badge>
-        </Button>
-
-        <div className="sm:ml-auto">
+        </div>
+        <div className="flex items-center gap-2">
+          <PatientSearch onSelectPatient={handlePatientSelect} isWaitingListOnly={true} />
           <DoctorFilter
             doctors={doctors}
             selectedDoctors={selectedDoctors}
             onSelectionChange={setSelectedDoctors}
             multiSelect={true}
           />
+          <Button onClick={() => setIsAddFormOpen(true)} size="sm">
+            Hasta Ekle
+          </Button>
         </div>
       </div>
 
@@ -353,8 +353,8 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedSurgeries.map((surgery) => (
-                <TableRow key={surgery.id}>
+              {filteredAndSortedSurgeries.map((surgery) => (
+                <TableRow key={surgery.id} id={`surgery-${surgery.id}`}>
                   <TableCell className="font-medium dark:text-slate-100">{surgery.patient_name}</TableCell>
                   <TableCell className="dark:text-slate-100">{surgery.protocol_number}</TableCell>
                   <TableCell className="max-w-xs dark:text-slate-100">{surgery.procedure_name}</TableCell>
@@ -664,7 +664,7 @@ export function WaitingListTable({ surgeries, doctors, salons }: WaitingListTabl
         salons={salons}
         isWaitingList={true}
       />
-    </>
+    </div>
   )
 }
 
