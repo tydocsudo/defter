@@ -74,6 +74,7 @@ interface FlipbookViewProps {
   dayNotes: any[]
   doctors: any[]
   initialDate?: string // Added initialDate prop to scroll to specific date
+  initialSalonId?: string // Added initialSalonId prop
 }
 
 export function FlipbookView({
@@ -82,6 +83,7 @@ export function FlipbookView({
   dayNotes,
   doctors: initialDoctors,
   initialDate,
+  initialSalonId,
 }: FlipbookViewProps) {
   console.log("[v0] FlipbookView received surgeries:", {
     count: surgeries.length,
@@ -133,12 +135,6 @@ export function FlipbookView({
 
   const [assignedDoctors, setAssignedDoctors] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    if (salons.length > 0 && !selectedSalonId) {
-      setSelectedSalonId(salons[0].id)
-    }
-  }, [salons, selectedSalonId])
-
   // FIX: Ensure weekDays is defined before it's used in the dependency array.
   // It's defined later in the component.
   const [currentWeekStartRef, setCurrentWeekStartRef] = useState(currentWeekStart) // Use a ref for currentWeekStart
@@ -173,6 +169,17 @@ export function FlipbookView({
   const safeWeekStart = getSafeCurrentWeekStart()
 
   const weekEnd = filterMode && weekDays.length > 0 ? weekDays[weekDays.length - 1] : addDays(safeWeekStart, 4)
+
+  useEffect(() => {
+    if (initialSalonId && initialSalons.length > 0) {
+      const salon = initialSalons.find((s) => s.id === initialSalonId)
+      if (salon) {
+        setSelectedSalonId(initialSalonId)
+      }
+    } else if (initialSalons.length > 0 && !selectedSalonId) {
+      setSelectedSalonId(initialSalons[0].id)
+    }
+  }, [initialSalons, selectedSalonId, initialSalonId])
 
   useEffect(() => {
     if (!selectedSalonId || weekDays.length === 0) return
@@ -222,6 +229,21 @@ export function FlipbookView({
 
     return () => clearTimeout(timeoutId)
   }, [selectedSalonId, currentWeekStart, filterMode, filteredDates, filteredDatePage, weekDays]) // Added weekDays to dependency array
+
+  useEffect(() => {
+    if (initialDate && !hasScrolledToInitialDate.current && selectedSalonId) {
+      try {
+        const targetDate = parseISO(initialDate)
+        if (isValid(targetDate)) {
+          const weekStart = startOfWeek(targetDate, { weekStartsOn: 1 })
+          setCurrentWeekStart(weekStart)
+          hasScrolledToInitialDate.current = true
+        }
+      } catch (error) {
+        console.error("[v0] Error parsing initial date:", error)
+      }
+    }
+  }, [initialDate, selectedSalonId])
 
   useEffect(() => {
     // Check sessionStorage for scroll target (priority over URL params)

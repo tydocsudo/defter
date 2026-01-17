@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { assignDoctorToDay } from "@/lib/actions/notes"
 import { assignFromWaitingList, deleteSurgery } from "@/lib/actions/surgeries"
 import { useState } from "react"
-import { Maximize2, Trash2 } from "lucide-react"
+import { Maximize2, Trash2, Edit } from "lucide-react"
 import { getDoctorColorById } from "@/components/doctor-filter"
 import { Button } from "@/components/ui/button"
+import { SurgeryFormEdit } from "@/components/surgery-form-edit"
 
 interface MonthlyCalendarProps {
   currentDate: Date
@@ -27,6 +28,10 @@ interface MonthlyCalendarProps {
   onDataChange: () => void
   filteredDoctors?: string[]
   highlightedDate?: string | null // Added highlightedDate prop for patient search navigation
+  currentMonth: number
+  currentYear: number
+  onDateClick: (date: string) => void
+  salons: any[]
 }
 
 export function MonthlyCalendar({
@@ -42,10 +47,16 @@ export function MonthlyCalendar({
   onDataChange,
   filteredDoctors = [],
   highlightedDate = null, // Accept highlightedDate prop
+  currentMonth,
+  currentYear,
+  onDateClick,
+  salons,
 }: MonthlyCalendarProps) {
   const [isAssigning, setIsAssigning] = useState(false)
   const [expandedDate, setExpandedDate] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingSurgery, setEditingSurgery] = useState<SurgeryWithDetails | null>(null)
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -371,6 +382,18 @@ export function MonthlyCalendar({
                           </Badge>
                         )}
                         <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            console.log("[v0] Edit button clicked, surgery:", surgery.id)
+                            setEditingSurgery(surgery)
+                          }}
+                          className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                          title="Hastayı Düzenle"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
                           variant="destructive"
                           size="sm"
                           onClick={(e) => handleDeleteSurgery(surgery.id, e)}
@@ -453,6 +476,25 @@ export function MonthlyCalendar({
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {editingSurgery && (
+        <SurgeryFormEdit
+          surgery={editingSurgery}
+          doctors={doctors}
+          salons={salons}
+          open={!!editingSurgery}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingSurgery(null)
+            }
+          }}
+          onSuccess={() => {
+            setEditingSurgery(null)
+            onDataChange() // Refresh data without page reload
+            setExpandedDate(null)
+          }}
+        />
       )}
     </>
   )

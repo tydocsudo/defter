@@ -29,6 +29,7 @@ export function SurgeryFormEdit({ surgery, doctors, open, onOpenChange, onSucces
     responsible_doctor_id: surgery.responsible_doctor_id || "",
     phone_number_1: surgery.phone_number_1,
     phone_number_2: surgery.phone_number_2,
+    is_waiting_list: surgery.is_waiting_list,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -40,6 +41,7 @@ export function SurgeryFormEdit({ surgery, doctors, open, onOpenChange, onSucces
       await updateSurgery(surgery.id, {
         ...formData,
         responsible_doctor_id: formData.responsible_doctor_id || null,
+        is_waiting_list: surgery.is_waiting_list,
       })
       onSuccess()
       onOpenChange(false)

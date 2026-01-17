@@ -246,6 +246,8 @@ export async function assignFromWaitingList(
   return { success: true, data }
 }
 
+export const assignToCalendar = assignFromWaitingList
+
 export async function approveSurgery(surgeryId: string) {
   const user = await getCurrentUser()
   if (!user) throw new Error("Unauthorized")

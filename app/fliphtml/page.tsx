@@ -9,7 +9,7 @@ export const revalidate = 0
 export default async function FliphtmlPage({
   searchParams,
 }: {
-  searchParams: { date?: string }
+  searchParams: { date?: string; salon?: string }
 }) {
   const user = await getCurrentUser()
   if (!user) {
@@ -46,6 +46,7 @@ export default async function FliphtmlPage({
         dayNotes={dayNotes || []}
         doctors={doctors || []}
         initialDate={searchParams.date}
+        initialSalonId={searchParams.salon}
       />
     </main>
   )

@@ -87,7 +87,7 @@ export function WaitingListPageClient() {
           {isLoading ? (
             <div className="text-center py-8 text-gray-500">Yükleniyor...</div>
           ) : (
-            <WaitingListTable surgeries={waitingSurgeries} doctors={doctors} salons={salons} />
+            <WaitingListTable initialSurgeries={waitingSurgeries} doctors={doctors} salons={salons} />
           )}
         </CardContent>
       </Card>
